@@ -191,6 +191,52 @@
   line-height: 1.4;
 }
 
+.roll-log {
+  margin-top: 6px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.roll-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.roll-log-entry {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 11px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--bg-panel-2);
+}
+.roll-log-time {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+.roll-log-label {
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.roll-log-out {
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  text-align: right;
+}
+.roll-log-out.strong {
+  color: var(--hit);
+}
+.roll-log-out.weak {
+  color: var(--weak);
+}
+.roll-log-out.miss {
+  color: var(--miss);
+}
+
 @media (max-width: 820px) {
   .dice-drawer {
     width: 100vw;

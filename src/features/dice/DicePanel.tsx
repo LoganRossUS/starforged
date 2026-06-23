@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import DiceBox, { type DiceResult } from '@3d-dice/dice-box';
+import type DiceBox from '@3d-dice/dice-box';
+import type { DiceResult } from '@3d-dice/dice-box';
 import { useDice, ODDS, type DiceMode, type ActionSetup } from './diceStore';
 import { useStore } from '@/store/store';
 import { resolveAction, clamp, uid } from '@/store/logic';
@@ -88,23 +89,27 @@ export function DicePanel() {
   useEffect(() => {
     if (!open || boxRef.current) return;
     let cancelled = false;
-    const box = new DiceBox({
-      container: '#dice-canvas',
-      assetPath: `${import.meta.env.BASE_URL}assets/dice-box/`,
-      theme: 'default',
-      scale: 7,
-      gravity: 2,
-      enableShadows: true,
-      shadowTransparency: 0.6,
-    });
-    box
-      .init()
-      .then(() => {
+    void (async () => {
+      const { default: DiceBoxCtor } = await import('@3d-dice/dice-box');
+      if (cancelled) return;
+      const box = new DiceBoxCtor({
+        container: '#dice-canvas',
+        assetPath: `${import.meta.env.BASE_URL}assets/dice-box/`,
+        theme: 'default',
+        scale: 7,
+        gravity: 2,
+        enableShadows: true,
+        shadowTransparency: 0.6,
+      });
+      try {
+        await box.init();
         if (cancelled) return;
         boxRef.current = box;
         setReady(true);
-      })
-      .catch((e) => console.error('dice-box init failed', e));
+      } catch (e) {
+        console.error('dice-box init failed', e);
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -359,6 +364,41 @@ export function DicePanel() {
         {mode === 'progress' && progressRes && <ProgressReadout res={progressRes} />}
         {mode === 'oracle' && oracleRes && <OracleReadout res={oracleRes} />}
         {mode === 'yesno' && yesnoRes && <YesNoReadout res={yesnoRes} />}
+
+        <RollLog />
+      </div>
+    </div>
+  );
+}
+
+function RollLog() {
+  const log = useStore((s) => s.campaign.log);
+  const clearLog = useStore((s) => s.clearLog);
+  if (log.length === 0) return null;
+  return (
+    <div className="roll-log">
+      <div className="row between center">
+        <div className="field-label">Roll Log</div>
+        <button className="icon-btn" onClick={clearLog} title="Clear log">
+          🗑
+        </button>
+      </div>
+      <div className="roll-log-list">
+        {log.slice(0, 20).map((e) => (
+          <div key={e.id} className="roll-log-entry">
+            <span className="roll-log-time">
+              {new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+            <span className="roll-log-label">{e.label}</span>
+            <span className={`roll-log-out ${e.outcome ?? ''}`}>
+              {e.type === 'action' && `score ${e.score} vs ${e.challengeDice?.join('/') ?? ''}`}
+              {e.type === 'progress' && `${e.progressScore} vs ${e.challengeDice?.join('/') ?? ''}`}
+              {(e.type === 'oracle' || e.type === 'yesno') && `${e.d100 ?? ''} ${e.oracleResult ?? ''}`}
+              {e.outcome && ` · ${e.outcome === 'strong' ? 'Strong' : e.outcome === 'weak' ? 'Weak' : 'Miss'}`}
+              {e.match && ' ★'}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );

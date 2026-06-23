@@ -124,9 +124,10 @@ export const useStore = create<StoreState>((set) => {
     });
   };
 
+  const initialCampaign = loadInitial();
   return {
-    campaign: loadInitial(),
-    activeSection: 'sheet',
+    campaign: initialCampaign,
+    activeSection: initialCampaign.wizardComplete ? 'sheet' : 'wizard',
     setSection: (s) => set({ activeSection: s }),
 
     newCampaign: (title) => {
