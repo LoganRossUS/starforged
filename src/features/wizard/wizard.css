@@ -53,6 +53,14 @@
   background: var(--red);
   border-color: var(--red);
 }
+.wiz-progress-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.wiz-roll-all {
+  font-weight: 600;
+}
 
 /* Step body */
 .wiz-step {
@@ -222,6 +230,27 @@
 .wiz-suboracle-rows td {
   padding: 5px 10px;
   vertical-align: top;
+}
+.wiz-suboracle-row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.wiz-suboracle-row:hover {
+  background: var(--bg-elevated);
+}
+.wiz-suboracle-row.selected {
+  background: var(--cyan-dim);
+}
+.wiz-suboracle-row.selected .wiz-suboracle-text .markdown,
+.wiz-suboracle-row.selected .wiz-suboracle-range {
+  color: var(--text);
+}
+.wiz-suboracle-check {
+  display: inline-block;
+  width: 12px;
+  margin-right: 4px;
+  color: var(--cyan);
+  font-weight: 700;
 }
 .wiz-suboracle-range {
   font-family: var(--font-mono);
