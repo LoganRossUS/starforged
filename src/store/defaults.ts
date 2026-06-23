@@ -1,6 +1,18 @@
-import type { Campaign, Character, ProgressTrack, Rank } from './types';
+import type { Campaign, Character, ProgressTrack, Rank, SectorMap } from './types';
 import { CAMPAIGN_VERSION } from './types';
 import { uid } from './logic';
+
+export function defaultSector(partial: Partial<SectorMap> = {}): SectorMap {
+  return {
+    id: uid('sector'),
+    name: '',
+    region: '',
+    control: '',
+    locations: [],
+    links: [],
+    ...partial,
+  };
+}
 
 export function emptyProgressTrack(
   partial: Partial<ProgressTrack> & { name: string; type: ProgressTrack['type'] },
@@ -58,12 +70,14 @@ export function defaultCharacter(): Character {
 
 export function defaultCampaign(title = 'Untitled Campaign'): Campaign {
   const now = new Date().toISOString();
+  const sector = defaultSector();
   return {
     version: CAMPAIGN_VERSION,
     meta: { title, createdAt: now, updatedAt: now },
     truths: {},
     character: defaultCharacter(),
-    sector: { name: '', region: '', control: '', locations: [], links: [] },
+    sectors: [sector],
+    currentSectorId: sector.id,
     connections: [],
     progressTracks: [],
     notes: [

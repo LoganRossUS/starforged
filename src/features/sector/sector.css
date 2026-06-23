@@ -9,7 +9,6 @@
   --kind-vault: #c77dff;
   --kind-creature: #e26a3b;
   --kind-ship: #6d7fd6;
-  --kind-exit: #e0507a;
   --kind-other: #aab0bd;
 }
 
@@ -81,6 +80,30 @@
   stroke: var(--cyan);
 }
 
+/* Edge passages — routes out of the sector to a neighbour */
+.sector-edge-line {
+  stroke: var(--cyan-dim);
+  stroke-width: 2;
+  stroke-dasharray: 2 5;
+}
+.sector-edge-line.charted {
+  stroke: var(--cyan);
+}
+.sector-gateway {
+  fill: var(--bg-void);
+  stroke: var(--cyan-dim);
+  stroke-width: 2;
+  cursor: pointer;
+}
+.sector-gateway.charted {
+  fill: var(--cyan);
+  stroke: var(--cyan);
+}
+.sector-gateway.selected {
+  stroke: var(--text);
+  stroke-width: 3;
+}
+
 .sector-loc-hex {
   stroke: var(--bg-void);
   stroke-width: 2;
@@ -146,6 +169,22 @@
   height: 12px;
   border-radius: 2px;
   display: inline-block;
+}
+.sector-legend .swatch i.swatch-gateway {
+  background: var(--cyan);
+  transform: rotate(45deg);
+  border-radius: 0;
+}
+
+/* Sector switcher row */
+.sector-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+.sector-switcher > :first-child {
+  min-width: 220px;
 }
 
 /* Editor panel */

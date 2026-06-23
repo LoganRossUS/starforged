@@ -3,7 +3,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { useStore } from '@/store/store';
 import { STATS, type Stat, type LocationKind, type AssetType } from '@/store/types';
 import { emptyProgressTrack } from '@/store/defaults';
-import { uid } from '@/store/logic';
+import { uid, currentSector } from '@/store/logic';
 import {
   truths,
   assets,
@@ -163,9 +163,9 @@ export function SetupWizard() {
   );
 
   // Sector + first location + first quest
-  const [sectorName, setSectorName] = useState(campaign.sector.name);
-  const [sectorRegion, setSectorRegion] = useState(campaign.sector.region);
-  const [sectorControl, setSectorControl] = useState(campaign.sector.control);
+  const [sectorName, setSectorName] = useState(currentSector(campaign).name);
+  const [sectorRegion, setSectorRegion] = useState(currentSector(campaign).region);
+  const [sectorControl, setSectorControl] = useState(currentSector(campaign).control);
   const [locName, setLocName] = useState('');
   const [locKind, setLocKind] = useState<LocationKind>('settlement');
   const [questVow, setQuestVow] = useState('');

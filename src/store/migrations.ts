@@ -1,6 +1,35 @@
-import type { Campaign } from './types';
+import type { Campaign, SectorMap } from './types';
 import { CAMPAIGN_VERSION } from './types';
-import { defaultCampaign } from './defaults';
+import { defaultCampaign, defaultSector } from './defaults';
+import { uid } from './logic';
+
+// v1 stored a single `sector`; v2 stores `sectors[]` + `currentSectorId`.
+// Accept either shape and normalise to the multi-sector model.
+function normaliseSectors(input: Record<string, unknown>): {
+  sectors: SectorMap[];
+  currentSectorId: string;
+} {
+  const rawList = Array.isArray(input.sectors)
+    ? (input.sectors as Partial<SectorMap>[])
+    : input.sector
+      ? [input.sector as Partial<SectorMap>]
+      : [];
+  const sectors = rawList.map((s) =>
+    defaultSector({
+      ...s,
+      id: s.id ?? uid('sector'),
+      locations: s.locations ?? [],
+      links: s.links ?? [],
+    }),
+  );
+  if (sectors.length === 0) sectors.push(defaultSector());
+  const currentId =
+    typeof input.currentSectorId === 'string' &&
+    sectors.some((s) => s.id === input.currentSectorId)
+      ? (input.currentSectorId as string)
+      : sectors[0].id;
+  return { sectors, currentSectorId: currentId };
+}
 
 /**
  * Validate + migrate an imported/persisted campaign object to the current schema.
@@ -9,10 +38,11 @@ import { defaultCampaign } from './defaults';
  */
 export function migrate(raw: unknown): Campaign {
   if (!raw || typeof raw !== 'object') return defaultCampaign();
-  const input = raw as Partial<Campaign>;
+  const input = raw as Partial<Campaign> & Record<string, unknown>;
 
   // Future version-specific migrations would branch on input.version here.
   const base = defaultCampaign(input.meta?.title ?? 'Imported Campaign');
+  const { sectors, currentSectorId } = normaliseSectors(input);
 
   const merged: Campaign = {
     ...base,
@@ -20,7 +50,8 @@ export function migrate(raw: unknown): Campaign {
     version: CAMPAIGN_VERSION,
     meta: { ...base.meta, ...input.meta },
     character: { ...base.character, ...input.character },
-    sector: { ...base.sector, ...input.sector },
+    sectors,
+    currentSectorId,
     connections: input.connections ?? base.connections,
     progressTracks: input.progressTracks ?? base.progressTracks,
     notes: input.notes && input.notes.length ? input.notes : base.notes,

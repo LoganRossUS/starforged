@@ -6,6 +6,7 @@ import type {
   ProgressTrack,
   Connection,
   AssetInstance,
+  SectorMap,
   SectorLocation,
   SectorLink,
   NoteDoc,
@@ -13,8 +14,8 @@ import type {
   Impacts,
   TruthChoice,
 } from './types';
-import { defaultCampaign } from './defaults';
-import { ensureMomentumSync, clamp, uid, legacyBoxXp, deriveMomentum } from './logic';
+import { defaultCampaign, defaultSector } from './defaults';
+import { ensureMomentumSync, clamp, uid, legacyBoxXp, deriveMomentum, currentSector } from './logic';
 import { migrate } from './migrations';
 
 const STORAGE_KEY = 'forge-companion:campaign';
@@ -66,13 +67,20 @@ interface StoreState {
   updateConnection: (id: string, patch: Partial<Connection>) => void;
   removeConnection: (id: string) => void;
 
-  // sector
-  setSectorField: (patch: Partial<Campaign['sector']>) => void;
+  // sector (operates on the current sector)
+  setSectorField: (patch: Partial<SectorMap>) => void;
   addLocation: (l: SectorLocation) => void;
   updateLocation: (id: string, patch: Partial<SectorLocation>) => void;
   removeLocation: (id: string) => void;
   addLink: (l: SectorLink) => void;
   removeLink: (id: string) => void;
+  // multi-sector navigation
+  addSector: (partial?: Partial<SectorMap>) => string;
+  selectSector: (id: string) => void;
+  removeSector: (id: string) => void;
+  // edge passages (routes to neighbouring sectors)
+  addEdgePassage: (fromId: string, q: number, r: number) => void;
+  chartBeyond: (linkId: string, opts: { sectorName: string; settlementName: string }) => void;
 
   // notes
   addNote: (n?: Partial<NoteDoc>) => string;
@@ -241,20 +249,94 @@ export const useStore = create<StoreState>((set) => {
     removeConnection: (id) =>
       edit((c) => void (c.connections = c.connections.filter((x) => x.id !== id))),
 
-    setSectorField: (patch) => edit((c) => void Object.assign(c.sector, patch)),
-    addLocation: (l) => edit((c) => void c.sector.locations.push(l)),
+    setSectorField: (patch) => edit((c) => void Object.assign(currentSector(c), patch)),
+    addLocation: (l) => edit((c) => void currentSector(c).locations.push(l)),
     updateLocation: (id, patch) =>
       edit((c) => {
-        const l = c.sector.locations.find((x) => x.id === id);
+        const l = currentSector(c).locations.find((x) => x.id === id);
         if (l) Object.assign(l, patch);
       }),
     removeLocation: (id) =>
       edit((c) => {
-        c.sector.locations = c.sector.locations.filter((x) => x.id !== id);
-        c.sector.links = c.sector.links.filter((k) => k.from !== id && k.to !== id);
+        const s = currentSector(c);
+        s.locations = s.locations.filter((x) => x.id !== id);
+        s.links = s.links.filter((k) => k.from !== id && k.to !== id);
       }),
-    addLink: (l) => edit((c) => void c.sector.links.push(l)),
-    removeLink: (id) => edit((c) => void (c.sector.links = c.sector.links.filter((x) => x.id !== id))),
+    addLink: (l) => edit((c) => void currentSector(c).links.push(l)),
+    removeLink: (id) =>
+      edit((c) => {
+        const s = currentSector(c);
+        s.links = s.links.filter((x) => x.id !== id);
+      }),
+
+    addSector: (partial) => {
+      const id = uid('sector');
+      edit((c) => {
+        // A new sector continues in the same region of space by default.
+        const region = partial?.region ?? currentSector(c).region;
+        c.sectors.push(defaultSector({ ...partial, id, region }));
+        c.currentSectorId = id;
+      });
+      return id;
+    },
+    selectSector: (id) =>
+      edit((c) => {
+        if (c.sectors.some((s) => s.id === id)) c.currentSectorId = id;
+      }),
+    removeSector: (id) =>
+      edit((c) => {
+        if (c.sectors.length <= 1) return; // always keep at least one sector
+        c.sectors = c.sectors.filter((s) => s.id !== id);
+        // drop any cross-sector passages that pointed at the removed sector
+        for (const s of c.sectors) {
+          for (const k of s.links) {
+            if (k.edge?.targetSectorId === id) {
+              k.edge.targetSectorId = undefined;
+              k.edge.targetLocationId = undefined;
+            }
+          }
+        }
+        if (c.currentSectorId === id) c.currentSectorId = c.sectors[0].id;
+      }),
+
+    addEdgePassage: (fromId, q, r) =>
+      edit((c) => {
+        const s = currentSector(c);
+        if (s.locations.some((l) => l.id === fromId)) {
+          s.links.push({ id: uid('link'), from: fromId, edge: { q, r } });
+        }
+      }),
+    chartBeyond: (linkId, opts) => {
+      const newSectorId = uid('sector');
+      const settlementId = uid('loc');
+      edit((c) => {
+        const src = currentSector(c);
+        const link = src.links.find((k) => k.id === linkId);
+        if (!link?.edge || link.edge.targetSectorId) return; // missing or already charted
+        const newSector = defaultSector({
+          id: newSectorId,
+          name: opts.sectorName,
+          region: src.region,
+        });
+        newSector.locations.push({
+          id: settlementId,
+          name: opts.settlementName || 'New Settlement',
+          kind: 'settlement',
+          q: 0,
+          r: 0,
+        });
+        // reciprocal passage in the new sector that routes back here
+        newSector.links.push({
+          id: uid('link'),
+          from: settlementId,
+          edge: { q: -1, r: 0, targetSectorId: src.id, targetLocationId: link.from },
+        });
+        c.sectors.push(newSector);
+        link.edge.targetSectorId = newSectorId;
+        link.edge.targetLocationId = settlementId;
+        c.currentSectorId = newSectorId;
+      });
+    },
 
     addNote: (n) => {
       const id = uid('note');

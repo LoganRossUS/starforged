@@ -149,7 +149,6 @@ export type LocationKind =
   | 'vault'
   | 'creature'
   | 'ship'
-  | 'exit'
   | 'other';
 
 export interface SectorLocation {
@@ -162,13 +161,24 @@ export interface SectorLocation {
   details?: { label: string; value: string }[];
 }
 
+// A passage. Per the Starforged rules a passage connects two settlements, OR
+// connects a settlement to the edge of the sector map (a route to a neighbouring
+// sector). Edge passages carry an `edge` anchor and, once the sector beyond is
+// charted, the ids of the sector + settlement they connect to.
 export interface SectorLink {
   id: string;
   from: string;
-  to: string;
+  to?: string; // present for settlement <-> settlement passages
+  edge?: {
+    q: number; // hex anchor near the map boundary the passage runs toward
+    r: number;
+    targetSectorId?: string; // the sector charted beyond this edge
+    targetLocationId?: string; // the settlement over there it links to
+  };
 }
 
 export interface SectorMap {
+  id: string;
   name: string;
   region: string;
   control: string; // faction control
@@ -215,7 +225,9 @@ export interface Campaign {
   meta: { title: string; createdAt: string; updatedAt: string };
   truths: Truths;
   character: Character;
-  sector: SectorMap;
+  // A campaign spans many sectors; `currentSectorId` is the one being viewed.
+  sectors: SectorMap[];
+  currentSectorId: string;
   connections: Connection[];
   progressTracks: ProgressTrack[];
   notes: NoteDoc[];
@@ -223,4 +235,4 @@ export interface Campaign {
   wizardComplete: boolean;
 }
 
-export const CAMPAIGN_VERSION = 1;
+export const CAMPAIGN_VERSION = 2;
