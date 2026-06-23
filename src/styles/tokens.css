@@ -1,0 +1,123 @@
+:root {
+  /* ---- Core palette (dark sci-fi, original recreation of the book's style) ---- */
+  --bg-void: #0c0d10;
+  --bg-deep: #0f1116;
+  --bg-panel: #15181f;
+  --bg-panel-2: #1b1f29;
+  --bg-elevated: #222734;
+  --bg-input: #0a0b0e;
+
+  --line: #2a2f3b;
+  --line-strong: #3a4150;
+
+  /* Signal red — used like the rulebook's key-term highlights & header banners */
+  --red: #e23b2e;
+  --red-dim: #b22a20;
+  --red-glow: rgba(226, 59, 46, 0.35);
+
+  /* Cyan/blue — "in control" / strong hit / challenge-die motif */
+  --cyan: #3fa9d6;
+  --cyan-dim: #2b7ba0;
+  --cyan-glow: rgba(63, 169, 214, 0.3);
+
+  /* Text */
+  --text: #e8eaf0;
+  --text-dim: #aab0bd;
+  --text-faint: #6b7280;
+
+  /* Outcomes */
+  --hit: #4fd28a;
+  --weak: #e8b54f;
+  --miss: #e2543b;
+  --match: #c77dff;
+
+  /* Asset type stripes (echo the book's card coding) */
+  --type-command: #e23b2e;
+  --type-module: #8a6dd6;
+  --type-support: #6d7fd6;
+  --type-path: #e26a3b;
+  --type-companion: #3fb6a8;
+  --type-deed: #5fc46a;
+
+  /* Typography */
+  --font-display: 'Saira Condensed', 'Oswald', 'Arial Narrow', sans-serif;
+  --font-body: 'Barlow', 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Spacing / shape */
+  --radius: 6px;
+  --radius-lg: 10px;
+  --gap: 16px;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+
+  --hex-mesh: rgba(255, 255, 255, 0.018);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: var(--bg-void);
+  background-image:
+    radial-gradient(circle at 20% 0%, rgba(226, 59, 46, 0.06), transparent 45%),
+    radial-gradient(circle at 90% 100%, rgba(63, 169, 214, 0.06), transparent 45%);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+a {
+  color: var(--cyan);
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font-family: var(--font-body);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-void);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--red-dim);
+}
+
+/* Subtle hex mesh utility (used on headers/backgrounds) */
+.hex-mesh {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 0L56 16v33L28 65 0 49V16z' fill='none' stroke='%23ffffff' stroke-opacity='0.03' stroke-width='1'/%3E%3C/svg%3E");
+}

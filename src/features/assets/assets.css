@@ -1,0 +1,157 @@
+.asset-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--red);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.asset-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.asset-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+.asset-card-head h4 {
+  font-size: 19px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 2px;
+}
+.asset-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.asset-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.asset-field > span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+.asset-field input,
+.asset-field select {
+  padding: 5px 8px;
+  font-size: 13px;
+}
+.asset-abilities {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.asset-ability {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.asset-ability.off {
+  opacity: 0.45;
+}
+.ability-dot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  background: transparent;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  border-radius: 0;
+}
+.ability-dot.on {
+  background: var(--red);
+  border-color: var(--red);
+}
+.ability-text {
+  flex: 1;
+  font-size: 13px;
+}
+.asset-meter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.asset-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.asset-control {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.asset-control.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.asset-control input[type='checkbox'] {
+  width: auto;
+}
+.meter-btn.sm {
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
+}
+
+/* ===== Asset library ===== */
+.asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--gap);
+}
+.asset-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  align-items: center;
+}
+.asset-toolbar input[type='text'] {
+  max-width: 280px;
+}
+.type-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.asset-library-note {
+  margin: -6px 0 14px;
+  font-size: 12px;
+}
+.asset-library-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.asset-library-item .asset-card {
+  flex: 1;
+}
+.asset-requirement {
+  font-size: 11px;
+  color: var(--text-dim);
+  border-left: 2px solid var(--type-deed);
+  padding-left: 8px;
+}
+.asset-add-btn {
+  width: 100%;
+}

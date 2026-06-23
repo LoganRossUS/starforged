@@ -1,0 +1,298 @@
+/* ============ Setup Wizard ============ */
+.wizard {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 8px 4px 60px;
+}
+
+/* Progress indicator */
+.wiz-progress {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-deep);
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0 14px;
+  margin-bottom: 18px;
+}
+.wiz-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.wiz-progress-head h2 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 22px;
+  color: var(--text);
+}
+.wiz-step-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.wiz-bar {
+  display: flex;
+  gap: 4px;
+}
+.wiz-bar-seg {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  transition: background 0.15s, border-color 0.15s;
+}
+.wiz-bar-seg.done {
+  background: var(--cyan-dim);
+  border-color: var(--cyan);
+}
+.wiz-bar-seg.current {
+  background: var(--red);
+  border-color: var(--red);
+}
+
+/* Step body */
+.wiz-step {
+  min-height: 220px;
+}
+.wiz-step > .section-title {
+  font-size: 18px;
+  color: var(--text);
+}
+.wiz-intro {
+  color: var(--text-dim);
+  margin: -2px 0 16px;
+  max-width: 64ch;
+}
+
+/* Nav footer */
+.wiz-nav {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  padding: 12px 0;
+  background: linear-gradient(transparent, var(--bg-deep) 28%);
+  border-top: 1px solid var(--line);
+}
+.wiz-nav .spacer {
+  flex: 1;
+}
+
+/* Truths */
+.wiz-truth-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.wiz-truth-tab {
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-strong);
+  color: var(--text-dim);
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.wiz-truth-tab.active {
+  border-color: var(--cyan);
+  color: var(--text);
+}
+.wiz-truth-tab.chosen::after {
+  content: '\2713';
+  margin-left: 6px;
+  color: var(--cyan);
+}
+.wiz-truth-prompt {
+  font-style: italic;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+}
+.wiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.wiz-option {
+  text-align: left;
+  width: 100%;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  color: var(--text);
+  transition: border-color 0.12s, background 0.12s;
+}
+.wiz-option:hover {
+  border-color: var(--line-strong);
+}
+.wiz-option.selected {
+  border-color: var(--red);
+  border-left-color: var(--red);
+  background: var(--bg-elevated);
+}
+.wiz-option-summary {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 16px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wiz-option-summary .wiz-radio {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  flex: 0 0 auto;
+}
+.wiz-option.selected .wiz-radio {
+  border-color: var(--red);
+  background: var(--red);
+  box-shadow: inset 0 0 0 2px var(--bg-panel-2);
+}
+.wiz-quest-starter {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--match);
+  font-style: italic;
+}
+.wiz-suboracle-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.wiz-custom-truth {
+  margin-top: 14px;
+}
+
+/* Stat assignment */
+.wiz-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+.wiz-stat-card {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  text-align: center;
+}
+.wiz-stat-card .field-label {
+  display: block;
+  margin-bottom: 8px;
+}
+.wiz-array-tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+.wiz-array-chip {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-strong);
+  color: var(--text-dim);
+}
+.wiz-array-chip.used {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.wiz-valid {
+  color: var(--hit);
+  font-weight: 600;
+}
+.wiz-invalid {
+  color: var(--weak);
+  font-weight: 600;
+}
+
+/* Asset picker */
+.wiz-asset-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.wiz-asset-count {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.wiz-asset-pick {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px;
+  background: var(--bg-deep);
+  transition: border-color 0.12s;
+}
+.wiz-asset-pick.selected {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 1px var(--cyan);
+}
+.wiz-asset-pick.disabled {
+  opacity: 0.45;
+}
+.wiz-asset-pick button.wiz-asset-toggle {
+  width: 100%;
+  margin-top: 6px;
+}
+
+/* Review */
+.wiz-review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+.wiz-review-card {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.wiz-review-card h4 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 14px;
+  color: var(--cyan);
+  margin-bottom: 8px;
+}
+.wiz-review-card .row-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  padding: 2px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.wiz-review-card .row-line:last-child {
+  border-bottom: none;
+}
+.wiz-review-card .row-line .k {
+  color: var(--text-faint);
+}
+.wiz-review-card .row-line .v {
+  color: var(--text);
+  text-align: right;
+}
+.wiz-finish {
+  text-align: center;
+  margin-top: 24px;
+}
