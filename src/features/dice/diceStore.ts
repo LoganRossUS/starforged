@@ -19,6 +19,9 @@ export interface OracleSetup {
   label: string;
   tableId?: string;
   // tens-die preference handled in panel
+  // Optional callback fired with the resolved oracle text once the roll lands.
+  // Used by callers (e.g. the sector map) to capture the outcome automatically.
+  onResult?: (text: string) => void;
 }
 
 export interface YesNoSetup {

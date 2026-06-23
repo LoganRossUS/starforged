@@ -249,6 +249,7 @@ export function DicePanel() {
       const text = row?.text ?? `${n}`;
       setOracleRes({ d100: n, table, row, text });
       log({ type: 'oracle', label: oracle.label, d100: n, oracleResult: text });
+      oracle.onResult?.(text);
     } finally {
       setRolling(false);
     }

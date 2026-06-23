@@ -78,15 +78,40 @@ function kindColor(kind: LocationKind): string {
   return `var(--kind-${kind})`;
 }
 
+interface OracleButton {
+  label: string;
+  tableId: string;
+}
+
+// Settlements aren't a single thing — they sit Planetside, in Orbit, or out in
+// Deep Space, and their population scales with the region of space. Build the
+// settlement oracle table from those facts rather than a flat list.
+function populationTableId(region: string): string {
+  const r = region.toLowerCase();
+  if (r.includes('terminus')) return 'starforged/oracles/settlements/population/terminus';
+  if (r.includes('expanse')) return 'starforged/oracles/settlements/population/expanse';
+  // Outlands is the canonical default when the region is blank/ambiguous.
+  return 'starforged/oracles/settlements/population/outlands';
+}
+
+function settlementOracles(region: string): OracleButton[] {
+  return [
+    { label: 'Location', tableId: 'starforged/oracles/settlements/location' },
+    { label: 'Name', tableId: 'starforged/oracles/settlements/name' },
+    { label: 'Population', tableId: populationTableId(region) },
+    { label: 'First Look', tableId: 'starforged/oracles/settlements/first_look' },
+    { label: 'Initial Contact', tableId: 'starforged/oracles/settlements/initial_contact' },
+    { label: 'Authority', tableId: 'starforged/oracles/settlements/authority' },
+    { label: 'Projects', tableId: 'starforged/oracles/settlements/projects' },
+    { label: 'Trouble', tableId: 'starforged/oracles/settlements/trouble' },
+  ];
+}
+
 // Map a location kind to one or more candidate oracle tables for detail generation.
 // Resolved at runtime so we never wire ids that don't exist in the dataset.
-const KIND_ORACLES: Record<LocationKind, { label: string; tableId: string }[]> = {
-  settlement: [
-    { label: 'Name', tableId: 'starforged/oracles/settlements/name' },
-    { label: 'First Look', tableId: 'starforged/oracles/settlements/first_look' },
-    { label: 'Authority', tableId: 'starforged/oracles/settlements/authority' },
-    { label: 'Trouble', tableId: 'starforged/oracles/settlements/trouble' },
-  ],
+// Settlements are computed separately (see settlementOracles) because they vary
+// by region; this record covers the fixed kinds.
+const KIND_ORACLES: Record<Exclude<LocationKind, 'settlement'>, OracleButton[]> = {
   star: [{ label: 'Stellar Object', tableId: 'starforged/oracles/space/stellar_object' }],
   planet: [
     { label: 'Class', tableId: 'starforged/oracles/planets/class' },
@@ -117,6 +142,11 @@ const KIND_ORACLES: Record<LocationKind, { label: string; tableId: string }[]> =
   ],
 };
 
+function oracleButtonsFor(kind: LocationKind, region: string): OracleButton[] {
+  if (kind === 'settlement') return settlementOracles(region);
+  return KIND_ORACLES[kind] ?? [];
+}
+
 type Mode = 'select' | 'place' | 'link';
 
 export function SectorMapView() {
@@ -135,6 +165,8 @@ export function SectorMapView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [linkArmed, setLinkArmed] = useState<string | null>(null);
   const [hoverHex, setHoverHex] = useState<{ q: number; r: number } | null>(null);
+  // World-space cursor position, tracked only while drawing a path for preview.
+  const [linkCursor, setLinkCursor] = useState<{ x: number; y: number } | null>(null);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const panState = useRef<{
@@ -194,6 +226,13 @@ export function SectorMapView() {
     } else if (hoverHex) {
       setHoverHex(null);
     }
+
+    if (mode === 'link' && linkArmed) {
+      const w = eventToWorld(e);
+      if (w) setLinkCursor(w);
+    } else if (linkCursor) {
+      setLinkCursor(null);
+    }
   }
 
   function onCanvasPointerUp(e: ReactPointerEvent<SVGSVGElement>) {
@@ -221,19 +260,19 @@ export function SectorMapView() {
   function onLocationClick(e: ReactMouseEvent<SVGGElement>, loc: SectorLocation) {
     e.stopPropagation();
     if (mode === 'link') {
-      if (!linkArmed) {
-        setLinkArmed(loc.id);
-      } else if (linkArmed !== loc.id) {
-        const a = linkArmed;
-        const b = loc.id;
-        const exists = sector.links.some(
-          (k) => (k.from === a && k.to === b) || (k.from === b && k.to === a),
-        );
-        if (!exists) addLink({ id: uid('link'), from: a, to: b });
-        setLinkArmed(null);
-      } else {
-        setLinkArmed(null);
+      // First tap arms a source; second tap on a different location draws the
+      // path. Read links/armed state from the store so the result never depends
+      // on a stale render closure.
+      const armed = linkArmed;
+      if (!armed || armed === loc.id) {
+        setLinkArmed(armed === loc.id ? null : loc.id);
+        return;
       }
+      const exists = sector.links.some(
+        (k) => (k.from === armed && k.to === loc.id) || (k.from === loc.id && k.to === armed),
+      );
+      if (!exists) addLink({ id: uid('link'), from: armed, to: loc.id });
+      setLinkArmed(null);
       return;
     }
     setSelectedId(loc.id);
@@ -248,13 +287,35 @@ export function SectorMapView() {
     setScale((s) => clampScale(s * factor));
   }
 
-  function rollOracle(label: string, tableId: string) {
+  // Upsert a detail row on a location, reading the latest store state so the
+  // write is correct even though it runs after the async dice roll resolves.
+  function upsertDetail(locId: string, label: string, value: string) {
+    const cur = useStore.getState().campaign.sector.locations.find((l) => l.id === locId);
+    if (!cur) return;
+    const details = [...(cur.details ?? [])];
+    const idx = details.findIndex((d) => d.label === label);
+    if (idx >= 0) details[idx] = { label, value };
+    else details.push({ label, value });
+    useStore.getState().updateLocation(locId, { details });
+  }
+
+  function rollOracle(detailLabel: string, tableId: string) {
+    if (!selected) return;
     if (!findOracleTable(tableId)) {
       // table id missing from dataset — fall back to the Oracles section
       setSection('oracles');
       return;
     }
-    useDice.getState().setupOracle({ label, tableId }, true);
+    const locId = selected.id;
+    useDice.getState().setupOracle(
+      {
+        label: `${KIND_LABELS[selected.kind]} — ${detailLabel}`,
+        tableId,
+        // Capture the rolled outcome straight into a labelled detail row.
+        onResult: (text) => upsertDetail(locId, detailLabel, text),
+      },
+      true,
+    );
   }
 
   // ---- Detail editing helpers (operate on the selected location) ----
@@ -377,6 +438,26 @@ export function SectorMapView() {
             <g transform={`translate(${offset.x},${offset.y}) scale(${scale})`}>
               <GridLayer hoverHex={mode === 'place' ? hoverHex : null} />
 
+              {/* Path-in-progress preview from the armed source to the cursor */}
+              {mode === 'link' &&
+                linkArmed &&
+                linkCursor &&
+                (() => {
+                  const a = locById.get(linkArmed);
+                  if (!a) return null;
+                  const pa = hexToPixel(a.q, a.r);
+                  return (
+                    <line
+                      className="sector-link-line armed"
+                      x1={pa.x}
+                      y1={pa.y}
+                      x2={linkCursor.x}
+                      y2={linkCursor.y}
+                      pointerEvents="none"
+                    />
+                  );
+                })()}
+
               {/* Links */}
               {sector.links.map((k) => {
                 const a = locById.get(k.from);
@@ -409,8 +490,12 @@ export function SectorMapView() {
                   <g
                     key={loc.id}
                     transform={`translate(${x},${y})`}
+                    // Swallow pointer events so a click on a location never reaches
+                    // the canvas handler (which would pan, or clear the armed link).
                     onPointerDown={(e) => e.stopPropagation()}
+                    onPointerUp={(e) => e.stopPropagation()}
                     onClick={(e) => onLocationClick(e, loc)}
+                    style={{ cursor: 'pointer' }}
                   >
                     <polygon
                       className={`sector-loc-hex ${isSel ? 'selected' : ''} ${
@@ -452,6 +537,7 @@ export function SectorMapView() {
           <LocationEditor
             key={selected.id}
             loc={selected}
+            oracleButtons={oracleButtonsFor(selected.kind, sector.region)}
             onPatch={patchSelected}
             onSetDetail={setDetail}
             onAddDetail={addDetail}
@@ -518,6 +604,7 @@ function GridLayer({ hoverHex }: { hoverHex: { q: number; r: number } | null }) 
 // ---- Location editor panel ----
 function LocationEditor({
   loc,
+  oracleButtons,
   onPatch,
   onSetDetail,
   onAddDetail,
@@ -527,6 +614,7 @@ function LocationEditor({
   onClose,
 }: {
   loc: SectorLocation;
+  oracleButtons: OracleButton[];
   onPatch: (patch: Partial<SectorLocation>) => void;
   onSetDetail: (index: number, key: 'label' | 'value', value: string) => void;
   onAddDetail: () => void;
@@ -536,7 +624,6 @@ function LocationEditor({
   onClose: () => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const oracleButtons = KIND_ORACLES[loc.kind] ?? [];
 
   return (
     <HexPanel className="sector-editor" accent={kindColor(loc.kind)}>
@@ -587,15 +674,15 @@ function LocationEditor({
           <button
             key={o.tableId + o.label}
             className="btn sm"
-            onClick={() => onRollOracle(`${KIND_LABELS[loc.kind]} — ${o.label}`, o.tableId)}
-            title="Roll this oracle in the dice panel, then add the result below"
+            onClick={() => onRollOracle(o.label, o.tableId)}
+            title="Roll this oracle — the result drops into a detail row automatically"
           >
             {o.label}
           </button>
         ))}
       </div>
       <p className="dim" style={{ fontSize: 12, marginTop: 2 }}>
-        Rolls open in the dice panel — copy the result into a detail row below.
+        Rolls land in the dice panel and fill a matching detail row below — re-roll any time.
       </p>
 
       <div className="section-title" style={{ marginTop: 10 }}>
