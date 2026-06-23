@@ -120,6 +120,7 @@ export interface TruthChoice {
   customText?: string;
   summary?: string; // resolved text shown on the sheet
   questStarter?: string;
+  subRolls?: string[]; // selected/rolled sub-table result(s), if any
 }
 export interface Truths {
   [categoryId: string]: TruthChoice;

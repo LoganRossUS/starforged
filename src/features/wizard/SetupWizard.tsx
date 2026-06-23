@@ -51,6 +51,41 @@ const STEPS = [
 
 const MAX_ASSETS = 3;
 
+// ---- Random roll helpers ----
+// Parse a dice expression like "1d100" / "2d10" and return a random total.
+function rollDice(expr: string): number {
+  const m = /(\d+)\s*d\s*(\d+)/i.exec(expr);
+  if (!m) return 1;
+  const count = Number(m[1]);
+  const sides = Number(m[2]);
+  let total = 0;
+  for (let i = 0; i < count; i++) total += 1 + Math.floor(Math.random() * sides);
+  return total;
+}
+
+// Find the row whose [min, max] range contains the roll.
+function rowForRoll<T extends { min: number | null; max: number | null }>(
+  rows: readonly T[],
+  roll: number,
+): T | undefined {
+  return rows.find((r) => r.min !== null && r.max !== null && roll >= r.min && roll <= r.max);
+}
+
+function pickRandom<T>(items: readonly T[]): T | undefined {
+  if (items.length === 0) return undefined;
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+// Fisher–Yates shuffle (returns a new array).
+function shuffle<T>(items: readonly T[]): T[] {
+  const out = items.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 export function SetupWizard() {
   // Store state + actions
   const campaign = useStore((s) => s.campaign);
@@ -101,6 +136,15 @@ export function SetupWizard() {
     for (const cat of truths) {
       const existing = campaign.truths[cat.id];
       if (existing?.customText) init[cat.id] = existing.customText;
+    }
+    return init;
+  });
+  // Selected sub-table result text(s) per truth category (supports multiple).
+  const [truthSubSel, setTruthSubSel] = useState<Record<string, string[]>>(() => {
+    const init: Record<string, string[]> = {};
+    for (const cat of truths) {
+      const existing = campaign.truths[cat.id];
+      if (existing?.subRolls?.length) init[cat.id] = existing.subRolls;
     }
     return init;
   });
@@ -177,21 +221,104 @@ export function SetupWizard() {
     setSectorField({ name: sectorName, region: sectorRegion, control: sectorControl });
   }
 
-  function selectTruthOption(catId: string, optIndex: number) {
+  // Commit a fully-resolved option selection (with optional sub-table results)
+  // to both local working state and the store, in one atomic update.
+  function applyTruthOption(catId: string, optIndex: number, subRolls: string[]) {
     const cat = truths.find((c) => c.id === catId);
     if (!cat) return;
     const opt = cat.options[optIndex];
     setTruthSel((prev) => ({ ...prev, [catId]: optIndex }));
+    setTruthSubSel((prev) => ({ ...prev, [catId]: subRolls }));
     setTruth(catId, {
       choiceId: String(optIndex),
       summary: opt.summary,
       questStarter: opt.questStarter,
+      subRolls: subRolls.length ? subRolls : undefined,
     });
   }
+
+  // Selecting a different option clears any prior sub-table results.
+  function selectTruthOption(catId: string, optIndex: number) {
+    applyTruthOption(catId, optIndex, []);
+  }
+
   function selectTruthCustom(catId: string, text: string) {
     setTruthCustom((prev) => ({ ...prev, [catId]: text }));
     setTruthSel((prev) => ({ ...prev, [catId]: 'custom' }));
+    setTruthSubSel((prev) => ({ ...prev, [catId]: [] }));
     setTruth(catId, { choiceId: 'custom', customText: text, summary: text });
+  }
+
+  // Current sub-table selections, but only when the given option is the one
+  // already selected — switching options starts the sub-selection fresh.
+  function subsForOption(catId: string, optIndex: number): string[] {
+    return truthSel[catId] === optIndex ? truthSubSel[catId] ?? [] : [];
+  }
+
+  // Toggle a single sub-table row in/out of the saved selection. Interacting
+  // with a row also selects its parent option.
+  function toggleTruthSubRow(catId: string, optIndex: number, text: string) {
+    const current = subsForOption(catId, optIndex);
+    const next = current.includes(text)
+      ? current.filter((t) => t !== text)
+      : [...current, text];
+    applyTruthOption(catId, optIndex, next);
+  }
+
+  // Roll on a sub-table and add the result to the selection.
+  function rollTruthSubTable(
+    catId: string,
+    optIndex: number,
+    table: { dice: string; rows: OracleRow[] },
+  ) {
+    const row = rowForRoll(table.rows, rollDice(table.dice)) ?? pickRandom(table.rows);
+    if (!row) return;
+    const current = subsForOption(catId, optIndex);
+    const next = current.includes(row.text) ? current : [...current, row.text];
+    applyTruthOption(catId, optIndex, next);
+  }
+
+  // Roll a whole truth category: pick an option, then roll its sub-table.
+  function rollTruthCategory(catIndex: number) {
+    const cat = truths[catIndex];
+    const opt = rowForRoll(cat.options, rollDice(cat.dice));
+    const optIndex = opt ? cat.options.indexOf(opt) : Math.floor(Math.random() * cat.options.length);
+    const chosen = cat.options[optIndex];
+    let subRolls: string[] = [];
+    if (chosen.table) {
+      const row = rowForRoll(chosen.table.rows, rollDice(chosen.table.dice)) ?? pickRandom(chosen.table.rows);
+      if (row) subRolls = [row.text];
+    }
+    applyTruthOption(cat.id, optIndex, subRolls);
+  }
+
+  function rollAllTruths() {
+    truths.forEach((_, i) => rollTruthCategory(i));
+  }
+
+  // ---- Randomizers for the other rollable steps ----
+  function randomizeStats() {
+    const order = shuffle([0, 1, 2, 3, 4]);
+    const next = {} as Record<Stat, number | null>;
+    STATS.forEach((s, i) => (next[s] = order[i]));
+    setStatSlots(next);
+  }
+
+  function randomizeAssets() {
+    setSelectedAssetIds(shuffle(assets).slice(0, MAX_ASSETS).map((a) => a.id));
+  }
+
+  function randomizeLocationKind() {
+    const kind = pickRandom(LOCATION_KINDS);
+    if (kind) setLocKind(kind);
+  }
+
+  // Roll every rollable selection across the whole wizard.
+  function randomizeAll() {
+    rollAllTruths();
+    randomizeStats();
+    randomizeAssets();
+    randomizeLocationKind();
   }
 
   function toggleAsset(def: AssetDef) {
@@ -302,6 +429,15 @@ export function SetupWizard() {
             />
           ))}
         </div>
+        <div className="wiz-progress-actions">
+          <button
+            className="btn sm wiz-roll-all"
+            onClick={randomizeAll}
+            title="Roll every selection in the wizard at once"
+          >
+            🎲 Randomly Generate All
+          </button>
+        </div>
       </div>
 
       <div className="wiz-step">
@@ -328,9 +464,14 @@ export function SetupWizard() {
         {step === 1 && (
           <div>
             <p className="wiz-intro">
-              Define the truths of your galaxy. Pick one option per category or write your own.
-              Selecting is optional — skip any you want to leave open.
+              Define the truths of your galaxy. Pick one option per category, roll it on the
+              oracle, or write your own. Selecting is optional — skip any you want to leave open.
             </p>
+            <div className="row between center wrap" style={{ marginBottom: 12 }}>
+              <button className="btn sm" onClick={rollAllTruths} title="Roll every truth category">
+                🎲 Roll All Truths
+              </button>
+            </div>
             <div className="wiz-truth-tabs">
               {truths.map((cat, i) => (
                 <button
@@ -348,8 +489,12 @@ export function SetupWizard() {
               category={truths[truthIdx]}
               selection={truthSel[truths[truthIdx].id]}
               customText={truthCustom[truths[truthIdx].id] ?? ''}
+              subSel={truthSubSel[truths[truthIdx].id] ?? []}
               onSelectOption={(idx) => selectTruthOption(truths[truthIdx].id, idx)}
               onCustom={(text) => selectTruthCustom(truths[truthIdx].id, text)}
+              onRollCategory={() => rollTruthCategory(truthIdx)}
+              onToggleSub={(idx, text) => toggleTruthSubRow(truths[truthIdx].id, idx, text)}
+              onRollSub={(idx, table) => rollTruthSubTable(truths[truthIdx].id, idx, table)}
             />
             <div className="row between center wrap" style={{ marginTop: 16 }}>
               <button
@@ -411,6 +556,11 @@ export function SetupWizard() {
               Distribute the standard array <strong>3, 2, 2, 1, 1</strong> across your five stats —
               each value used exactly once.
             </p>
+            <div className="row" style={{ marginBottom: 4 }}>
+              <button className="btn sm" onClick={randomizeStats} title="Randomly distribute the array">
+                🎲 Randomize Stats
+              </button>
+            </div>
             <div className="wiz-array-tally">
               {STANDARD_ARRAY.map((v, i) => (
                 <span key={i} className={`wiz-array-chip ${usedSlots.includes(i) ? 'used' : ''}`}>
@@ -481,8 +631,17 @@ export function SetupWizard() {
                 </button>
               ))}
             </div>
-            <div className="wiz-asset-count">
-              Selected <span className="accent-cyan">{selectedAssetIds.length}</span> / {MAX_ASSETS}
+            <div className="row between center wrap">
+              <div className="wiz-asset-count">
+                Selected <span className="accent-cyan">{selectedAssetIds.length}</span> / {MAX_ASSETS}
+              </div>
+              <button
+                className="btn sm"
+                onClick={randomizeAssets}
+                title={`Pick ${MAX_ASSETS} random assets`}
+              >
+                🎲 Random Pick
+              </button>
             </div>
             <div className="asset-grid">
               {filteredAssets.map((def) => {
@@ -569,13 +728,23 @@ export function SetupWizard() {
                 </label>
                 <label className="field">
                   <span className="field-label">Kind</span>
-                  <select value={locKind} onChange={(e) => setLocKind(e.target.value as LocationKind)}>
-                    {LOCATION_KINDS.map((k) => (
-                      <option key={k} value={k}>
-                        {k}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="row gap-sm">
+                    <select value={locKind} onChange={(e) => setLocKind(e.target.value as LocationKind)}>
+                      {LOCATION_KINDS.map((k) => (
+                        <option key={k} value={k}>
+                          {k}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn sm"
+                      type="button"
+                      onClick={randomizeLocationKind}
+                      title="Random location kind"
+                    >
+                      🎲
+                    </button>
+                  </div>
                 </label>
               </div>
             </HexPanel>
@@ -635,6 +804,10 @@ export function SetupWizard() {
                   k="Defined"
                   v={`${Object.values(truthSel).filter((x) => x !== undefined).length} / ${truths.length}`}
                 />
+                <ReviewLine
+                  k="Sub-table results"
+                  v={String(Object.values(truthSubSel).reduce((n, arr) => n + arr.length, 0))}
+                />
               </ReviewCard>
               <ReviewCard title="Vows">
                 <ReviewLine k="Background" v={bgVow.trim() || '—'} />
@@ -681,18 +854,33 @@ function TruthEditor({
   category,
   selection,
   customText,
+  subSel,
   onSelectOption,
   onCustom,
+  onRollCategory,
+  onToggleSub,
+  onRollSub,
 }: {
   category: (typeof truths)[number];
   selection: number | 'custom' | undefined;
   customText: string;
+  subSel: string[];
   onSelectOption: (idx: number) => void;
   onCustom: (text: string) => void;
+  onRollCategory: () => void;
+  onToggleSub: (optIndex: number, text: string) => void;
+  onRollSub: (optIndex: number, table: { dice: string; rows: OracleRow[] }) => void;
 }) {
   return (
     <HexPanel>
-      <div className="section-title">{category.name}</div>
+      <div className="row between center wrap">
+        <div className="section-title" style={{ margin: 0 }}>
+          {category.name}
+        </div>
+        <button className="btn sm" onClick={onRollCategory} title={`Roll ${category.dice}`}>
+          🎲 Roll ({category.dice})
+        </button>
+      </div>
       {category.yourCharacter && <p className="wiz-truth-prompt">{category.yourCharacter}</p>}
       <div className="wiz-options">
         {category.options.map((opt, i) => {
@@ -714,7 +902,15 @@ function TruthEditor({
                   <div className="wiz-quest-starter">Quest starter: {opt.questStarter}</div>
                 )}
               </button>
-              {opt.table && <SubOracleTable dice={opt.table.dice} rows={opt.table.rows} />}
+              {opt.table && (
+                <SubOracleTable
+                  dice={opt.table.dice}
+                  rows={opt.table.rows}
+                  selected={selected ? subSel : []}
+                  onRoll={() => onRollSub(i, opt.table!)}
+                  onToggleRow={(text) => onToggleSub(i, text)}
+                />
+              )}
             </div>
           );
         })}
@@ -738,23 +934,53 @@ function formatRowRange(row: OracleRow): string {
   return row.min === row.max ? String(row.min) : `${row.min}–${row.max}`;
 }
 
-function SubOracleTable({ dice, rows }: { dice: string; rows: OracleRow[] }) {
+function SubOracleTable({
+  dice,
+  rows,
+  selected,
+  onRoll,
+  onToggleRow,
+}: {
+  dice: string;
+  rows: OracleRow[];
+  selected: string[];
+  onRoll: () => void;
+  onToggleRow: (text: string) => void;
+}) {
   return (
     <div className="wiz-suboracle">
       <div className="wiz-suboracle-head">
         <span className="wiz-suboracle-label">Sub-oracle</span>
-        <span className="wiz-suboracle-dice">{dice}</span>
+        <div className="row gap-sm center">
+          <span className="wiz-suboracle-dice">{dice}</span>
+          <button className="btn sm" onClick={onRoll} title={`Roll ${dice}`}>
+            🎲 Roll
+          </button>
+        </div>
       </div>
       <table className="wiz-suboracle-rows">
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={i}>
-              <td className="wiz-suboracle-range">{formatRowRange(row)}</td>
-              <td className="wiz-suboracle-text">
-                <Markdown>{row.text}</Markdown>
-              </td>
-            </tr>
-          ))}
+          {rows.map((row, i) => {
+            const isSel = selected.includes(row.text);
+            return (
+              <tr
+                key={i}
+                className={`wiz-suboracle-row ${isSel ? 'selected' : ''}`}
+                onClick={() => onToggleRow(row.text)}
+                title="Click to select (you can pick more than one)"
+              >
+                <td className="wiz-suboracle-range">
+                  <span className="wiz-suboracle-check" aria-hidden>
+                    {isSel ? '✓' : ''}
+                  </span>
+                  {formatRowRange(row)}
+                </td>
+                <td className="wiz-suboracle-text">
+                  <Markdown>{row.text}</Markdown>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
