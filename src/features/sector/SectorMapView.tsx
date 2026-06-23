@@ -60,6 +60,7 @@ const KIND_LABELS: Record<LocationKind, string> = {
   vault: 'Vault',
   creature: 'Creature',
   ship: 'Ship',
+  exit: 'Sector Exit',
   other: 'Other',
 };
 
@@ -71,6 +72,7 @@ const KIND_ORDER: LocationKind[] = [
   'vault',
   'creature',
   'ship',
+  'exit',
   'other',
 ];
 
@@ -136,6 +138,10 @@ const KIND_ORACLES: Record<Exclude<LocationKind, 'settlement'>, OracleButton[]> 
     { label: 'Type', tableId: 'starforged/oracles/starships/type' },
     { label: 'First Look', tableId: 'starforged/oracles/starships/first_look' },
   ],
+  exit: [
+    { label: 'Destination (Prefix)', tableId: 'starforged/oracles/space/sector_name/prefix' },
+    { label: 'Destination (Suffix)', tableId: 'starforged/oracles/space/sector_name/suffix' },
+  ],
   other: [
     { label: 'Descriptor', tableId: 'starforged/oracles/core/descriptor' },
     { label: 'Focus', tableId: 'starforged/oracles/core/focus' },
@@ -147,7 +153,7 @@ function oracleButtonsFor(kind: LocationKind, region: string): OracleButton[] {
   return KIND_ORACLES[kind] ?? [];
 }
 
-type Mode = 'select' | 'place' | 'link';
+type Mode = 'select' | 'place' | 'link' | 'exit';
 
 export function SectorMapView() {
   const sector = useStore((s) => s.campaign.sector);
@@ -220,7 +226,7 @@ export function SectorMapView() {
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) ps.moved = true;
       if (ps.moved) setOffset({ x: ps.originX + dx, y: ps.originY + dy });
     }
-    if (mode === 'place') {
+    if (mode === 'place' || mode === 'exit') {
       const w = eventToWorld(e);
       if (w) setHoverHex(pixelToHex(w.x, w.y));
     } else if (hoverHex) {
@@ -241,14 +247,21 @@ export function SectorMapView() {
     (e.target as Element).releasePointerCapture?.(e.pointerId);
     if (ps.moved) return; // it was a drag, not a click
 
-    if (mode === 'place') {
+    if (mode === 'place' || mode === 'exit') {
       const w = eventToWorld(e);
       if (!w) return;
       const { q, r } = pixelToHex(w.x, w.y);
       // avoid stacking two locations on the same hex
       if (sector.locations.some((l) => l.q === q && l.r === r)) return;
       const id = uid('loc');
-      addLocation({ id, name: 'New Location', kind: 'other', q, r });
+      const isExit = mode === 'exit';
+      addLocation({
+        id,
+        name: isExit ? 'Sector Exit' : 'New Location',
+        kind: isExit ? 'exit' : 'other',
+        q,
+        r,
+      });
       setSelectedId(id);
     } else {
       // clicking empty canvas in select/link mode clears selection / arming
@@ -402,14 +415,18 @@ export function SectorMapView() {
           >
             Link
           </button>
+          <button
+            className={`btn sm ${mode === 'exit' ? 'cyan' : ''}`}
+            onClick={() => {
+              setMode(mode === 'exit' ? 'select' : 'exit');
+              setLinkArmed(null);
+            }}
+            title="Place a route to a neighbouring sector at the edge of the map"
+          >
+            + Sector Exit
+          </button>
         </div>
         <div className="row gap-sm" style={{ marginLeft: 'auto' }}>
-          <button className="btn sm" onClick={() => zoomBy(1 / 1.2)} title="Zoom out">
-            −
-          </button>
-          <button className="btn sm" onClick={() => zoomBy(1.2)} title="Zoom in">
-            +
-          </button>
           <button
             className="btn sm"
             onClick={() => {
@@ -418,7 +435,7 @@ export function SectorMapView() {
             }}
             title="Reset view"
           >
-            Reset
+            Reset View
           </button>
         </div>
       </div>
@@ -427,7 +444,7 @@ export function SectorMapView() {
         <div className="sector-map-wrap">
           <svg
             ref={svgRef}
-            className={`sector-map-svg ${mode === 'place' ? 'place-mode' : ''} ${
+            className={`sector-map-svg ${mode === 'place' || mode === 'exit' ? 'place-mode' : ''} ${
               panState.current.active && panState.current.moved ? 'panning' : ''
             }`}
             onPointerDown={onCanvasPointerDown}
@@ -436,7 +453,7 @@ export function SectorMapView() {
             onWheel={onWheel}
           >
             <g transform={`translate(${offset.x},${offset.y}) scale(${scale})`}>
-              <GridLayer hoverHex={mode === 'place' ? hoverHex : null} />
+              <GridLayer hoverHex={mode === 'place' || mode === 'exit' ? hoverHex : null} />
 
               {/* Path-in-progress preview from the armed source to the cursor */}
               {mode === 'link' &&
@@ -516,11 +533,13 @@ export function SectorMapView() {
           <div className="sector-hint">
             {mode === 'place'
               ? 'Click an empty hex to place a location. Drag to pan.'
-              : mode === 'link'
-                ? linkArmed
-                  ? 'Click a second location to link. Click a link to remove it.'
-                  : 'Click two locations to link them.'
-                : 'Drag to pan · wheel to zoom · click a location to edit.'}
+              : mode === 'exit'
+                ? 'Click an edge hex to add a sector exit, then link a path to it.'
+                : mode === 'link'
+                  ? linkArmed
+                    ? 'Click a second location to link. Click a link to remove it.'
+                    : 'Click two locations to link them.'
+                  : 'Drag to pan · wheel to zoom · click a location to edit.'}
           </div>
 
           <div className="sector-zoom-controls">

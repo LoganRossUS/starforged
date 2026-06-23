@@ -149,6 +149,7 @@ export type LocationKind =
   | 'vault'
   | 'creature'
   | 'ship'
+  | 'exit'
   | 'other';
 
 export interface SectorLocation {
