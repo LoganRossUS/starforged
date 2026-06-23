@@ -63,7 +63,7 @@ export function CreditsView() {
         <HexPanel>
           <div className="section-title">Built With</div>
           <p className="muted" style={{ fontSize: 13 }}>
-            Vite · React · TypeScript · Zustand · @3d-dice/dice-box (Three.js + cannon-es physics). Fonts: Saira
+            Vite · React · TypeScript · Zustand · @3d-dice/dice-box-threejs (Three.js + cannon-es physics). Fonts: Saira
             Condensed, Barlow, JetBrains Mono (Google Fonts, open licensed lookalikes — not the proprietary book
             fonts).
           </p>

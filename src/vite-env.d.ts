@@ -1,52 +1,36 @@
 /// <reference types="vite/client" />
 
-declare module '@3d-dice/dice-box' {
-  export interface DiceResult {
-    groupId: number;
-    rollId: number;
-    sides: number;
-    dieType: string;
-    theme: string;
-    themeColor: string;
-    value: number;
+declare module '@3d-dice/dice-box-threejs' {
+  export interface DiceColorset {
+    foreground?: string | string[];
+    background?: string | string[];
+    outline?: string;
+    edge?: string;
+    texture?: string;
+    material?: string;
   }
   export interface DiceBoxConfig {
-    container?: string;
     assetPath?: string;
-    theme?: string;
-    themeColor?: string;
-    scale?: number;
-    gravity?: number;
-    mass?: number;
-    friction?: number;
-    restitution?: number;
-    angularDamping?: number;
-    linearDamping?: number;
-    spinForce?: number;
-    throwForce?: number;
-    startingHeight?: number;
-    settleTimeout?: number;
-    offscreen?: boolean;
-    delay?: number;
-    lightIntensity?: number;
-    enableShadows?: boolean;
-    shadowTransparency?: number;
-  }
-  export interface RollGroup {
-    qty: number;
-    sides: number;
-    themeColor?: string;
-    modifier?: number;
+    framerate?: number;
+    sounds?: boolean;
+    volume?: number;
+    shadows?: boolean;
+    theme_surface?: string;
+    theme_customColorset?: DiceColorset | null;
+    theme_colorset?: string;
+    theme_texture?: string;
+    theme_material?: string;
+    gravity_multiplier?: number;
+    light_intensity?: number;
+    baseScale?: number;
+    strength?: number;
+    onRollComplete?: (results: unknown) => void;
   }
   export default class DiceBox {
-    constructor(config?: DiceBoxConfig);
-    init(): Promise<void>;
-    roll(notation: string | string[] | RollGroup | RollGroup[]): Promise<DiceResult[]>;
-    add(notation: string | RollGroup | RollGroup[]): Promise<DiceResult[]>;
-    clear(): void;
-    hide(): DiceBox;
-    show(): DiceBox;
-    onRollComplete: (results: DiceResult[]) => void;
-    onRollResult: (result: DiceResult) => void;
+    constructor(container: string, config?: DiceBoxConfig);
+    initialize(): Promise<void>;
+    // Predetermined notation, e.g. "1d6+2d10@4,7,2" lands the dice on 4, 7, 2.
+    roll(notation: string): Promise<unknown>;
+    clearDice(): void;
   }
 }

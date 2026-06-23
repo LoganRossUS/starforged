@@ -12,7 +12,7 @@ browser, and your campaign saves to a downloadable JSON file.
 ## Features
 
 - **Real 3D physics dice.** Action, progress, and oracle rolls throw actual tumbling
-  dice ([@3d-dice/dice-box](https://github.com/3d-dice/dice-box), Three.js + cannon-es).
+  dice ([@3d-dice/dice-box-threejs](https://github.com/3d-dice/dice-box-threejs), Three.js + cannon-es).
   Full outcome resolution: strong/weak/miss, matches, **burn momentum**, and
   **negative-momentum cancellation**.
 - **Setup wizard** — guided flow through all 14 setting truths, character basics, the
@@ -64,7 +64,10 @@ This runs `scripts/build-content.mjs`, which reads
 The generated files are committed so the app works offline with no runtime fetching. To
 update content, bump `@datasworn/starforged` and re-run `npm run build:content`.
 
-The 3D dice assets (physics WASM + dice theme) live in `public/assets/dice-box/`.
+The 3D dice use `@3d-dice/dice-box-threejs` with *predetermined* values: the app
+draws each die with a uniform CSPRNG and the dice are animated to land on exactly
+those numbers, so the rolling dice always match the result. The dice textures live
+in `public/assets/dice-box-threejs/`.
 
 ## Project structure
 
@@ -91,7 +94,7 @@ src/styles/                   design tokens + global styles
 
 ## Tech stack
 
-Vite · React · TypeScript · Zustand · @3d-dice/dice-box. Styling uses centralized CSS
+Vite · React · TypeScript · Zustand · @3d-dice/dice-box-threejs. Styling uses centralized CSS
 design tokens (`src/styles/tokens.css`). Fonts are open-licensed Google Fonts
 (Saira Condensed, Barlow, JetBrains Mono) chosen to evoke — not reproduce — the book's
 type.
