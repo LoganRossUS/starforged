@@ -134,3 +134,24 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+.asset-library-note {
+  margin: -6px 0 14px;
+  font-size: 12px;
+}
+.asset-library-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.asset-library-item .asset-card {
+  flex: 1;
+}
+.asset-requirement {
+  font-size: 11px;
+  color: var(--text-dim);
+  border-left: 2px solid var(--type-deed);
+  padding-left: 8px;
+}
+.asset-add-btn {
+  width: 100%;
+}

@@ -1,0 +1,184 @@
+/* ---- Sector Map Builder ---- */
+
+/* Location-kind palette */
+:root {
+  --kind-settlement: #5fc46a;
+  --kind-star: #e8b54f;
+  --kind-planet: #3fa9d6;
+  --kind-derelict: #8a6dd6;
+  --kind-vault: #c77dff;
+  --kind-creature: #e26a3b;
+  --kind-ship: #6d7fd6;
+  --kind-other: #aab0bd;
+}
+
+.sector-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.sector-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.sector-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-top: 12px;
+}
+@media (min-width: 900px) {
+  .sector-layout.has-editor {
+    grid-template-columns: 1fr 320px;
+  }
+}
+
+.sector-map-wrap {
+  position: relative;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-void);
+  overflow: hidden;
+  height: 540px;
+}
+
+.sector-map-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+}
+.sector-map-svg.place-mode {
+  cursor: crosshair;
+}
+.sector-map-svg.panning {
+  cursor: grabbing;
+}
+
+.sector-grid-cell {
+  fill: transparent;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.sector-grid-cell.hover {
+  fill: rgba(63, 169, 214, 0.08);
+  stroke: var(--cyan-dim);
+}
+
+.sector-link-line {
+  stroke: var(--line-strong);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+}
+.sector-link-line.armed {
+  stroke: var(--cyan);
+}
+
+.sector-loc-hex {
+  stroke: var(--bg-void);
+  stroke-width: 2;
+  cursor: pointer;
+}
+.sector-loc-hex.selected {
+  stroke: var(--text);
+  stroke-width: 3;
+}
+.sector-loc-hex.link-armed {
+  stroke: var(--cyan);
+  stroke-width: 3;
+}
+
+.sector-loc-label {
+  fill: var(--text);
+  font-family: var(--font-display);
+  font-size: 12px;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--bg-void);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+
+.sector-zoom-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 6px;
+}
+
+.sector-hint {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  font-size: 12px;
+  color: var(--text-faint);
+  background: rgba(12, 13, 16, 0.7);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px 8px;
+  pointer-events: none;
+}
+
+/* Kind legend / swatches */
+.sector-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.sector-legend .swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.sector-legend .swatch i {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* Editor panel */
+.sector-editor {
+  align-self: start;
+}
+.sector-editor .editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sector-detail-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.sector-oracle-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.sector-kind-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: middle;
+}

@@ -1,0 +1,237 @@
+/* ---- Move Reference ---- */
+.move-reference {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.move-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.move-toolbar input[type='text'] {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.move-view-toggle {
+  display: flex;
+  gap: 6px;
+}
+
+/* Two-pane desktop layout: index on the left, detail on the right. */
+.move-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) 1fr;
+  gap: var(--gap);
+  align-items: start;
+}
+
+.move-index {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.move-index-cat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.move-cat-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-left: 3px solid var(--line-strong);
+  padding-left: 8px;
+}
+.move-cat-name {
+  margin-bottom: 0;
+  color: var(--text);
+}
+.move-cat-summary {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.move-index-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.move-index-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+.move-index-item:hover {
+  border-color: var(--cyan);
+  color: var(--text);
+  background: var(--bg-panel-2);
+}
+.move-index-item.active {
+  border-color: var(--red);
+  color: var(--text);
+  background: var(--bg-panel-2);
+}
+.move-index-name {
+  font-weight: 600;
+}
+
+.move-rolltag {
+  flex: 0 0 auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid var(--line-strong);
+  color: var(--text-faint);
+  background: var(--bg-elevated);
+  white-space: nowrap;
+}
+.move-rolltag.rt-action_roll {
+  color: var(--red);
+  border-color: var(--red-dim);
+}
+.move-rolltag.rt-progress_roll {
+  color: var(--cyan);
+  border-color: var(--cyan-dim);
+}
+.move-rolltag.rt-no_roll,
+.move-rolltag.rt-special_track {
+  color: var(--text-faint);
+}
+
+/* ---- Detail pane ---- */
+.move-detail-pane {
+  min-width: 0;
+}
+.move-detail-empty {
+  margin: 0;
+}
+
+.move-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.move-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.move-detail-title {
+  font-size: 22px;
+  color: var(--text);
+}
+
+.move-trigger {
+  border-left: 3px solid var(--cyan);
+  padding-left: 12px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+.move-trigger .markdown p {
+  margin: 0.2em 0;
+}
+
+.move-text {
+  color: var(--text);
+}
+
+/* ---- Rollers ---- */
+.move-roller {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  background: var(--bg-panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.move-roller-hint {
+  font-size: 12px;
+  text-transform: capitalize;
+}
+.move-roller-progress {
+  align-items: flex-end;
+}
+.move-track-field {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+/* ---- Outcomes ---- */
+.move-outcomes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.move-outcome {
+  border-left: 3px solid var(--line-strong);
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.move-outcome-label {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+.move-outcome .markdown p {
+  margin: 0.25em 0;
+}
+.out-strong {
+  border-left-color: var(--hit);
+}
+.out-strong .move-outcome-label {
+  color: var(--hit);
+}
+.out-weak {
+  border-left-color: var(--weak);
+}
+.out-weak .move-outcome-label {
+  color: var(--weak);
+}
+.out-miss {
+  border-left-color: var(--miss);
+}
+.out-miss .move-outcome-label {
+  color: var(--miss);
+}
+
+/* ---- Responsive: single column, detail handled by modal ---- */
+@media (max-width: 820px) {
+  .move-layout {
+    grid-template-columns: 1fr;
+  }
+  .move-index {
+    max-height: none;
+    overflow: visible;
+  }
+  /* The inline detail pane is redundant on mobile — the modal takes over. */
+  .move-detail-pane {
+    display: none;
+  }
+}
