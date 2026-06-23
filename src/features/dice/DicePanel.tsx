@@ -1,14 +1,25 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type DiceBox from '@3d-dice/dice-box';
-import type { DiceResult } from '@3d-dice/dice-box';
+import type DiceBox from '@3d-dice/dice-box-threejs';
 import { useDice, ODDS, type DiceMode, type ActionSetup } from './diceStore';
 import { useStore } from '@/store/store';
 import { resolveAction, clamp, uid } from '@/store/logic';
 import { findOracleTable, type OracleTable, type OracleRow } from '@/content';
 import type { RollLogEntry } from '@/store/types';
 
-const RED = '#e23b2e';
-const CYAN = '#3fa9d6';
+// We roll the numbers ourselves with a uniform CSPRNG and feed them to the
+// dice-box as *predetermined* values (e.g. "1d6+2d10@4,7,2"). The 3D dice are
+// then re-faced to land on exactly those numbers, so the animated die always
+// matches the result shown in the readout. Returns 1..sides, unbiased.
+function rollDie(sides: number): number {
+  const limit = Math.floor(0x1_0000_0000 / sides) * sides; // reject the biased tail
+  const buf = new Uint32Array(1);
+  let x = 0;
+  do {
+    crypto.getRandomValues(buf);
+    x = buf[0];
+  } while (x >= limit);
+  return (x % sides) + 1;
+}
 
 interface ActionResult {
   d6: number;
@@ -90,19 +101,26 @@ export function DicePanel() {
     if (!open || boxRef.current) return;
     let cancelled = false;
     void (async () => {
-      const { default: DiceBoxCtor } = await import('@3d-dice/dice-box');
+      const { default: DiceBoxCtor } = await import('@3d-dice/dice-box-threejs');
       if (cancelled) return;
-      const box = new DiceBoxCtor({
-        container: '#dice-canvas',
-        assetPath: `${import.meta.env.BASE_URL}assets/dice-box/`,
-        theme: 'default',
-        scale: 7,
-        gravity: 2,
-        enableShadows: true,
-        shadowTransparency: 0.6,
+      const box = new DiceBoxCtor('#dice-canvas', {
+        assetPath: `${import.meta.env.BASE_URL}assets/dice-box-threejs/`,
+        theme_customColorset: {
+          background: '#c7ced6',
+          foreground: '#0b0d11',
+          outline: '#3fa9d6',
+          edge: '#7d8893',
+          texture: 'none',
+          material: 'none',
+        },
+        baseScale: 75,
+        gravity_multiplier: 400,
+        strength: 1.2,
+        shadows: true,
+        sounds: false,
       });
       try {
-        await box.init();
+        await box.initialize();
         if (cancelled) return;
         boxRef.current = box;
         setReady(true);
@@ -125,24 +143,15 @@ export function DicePanel() {
   const log = (entry: Omit<RollLogEntry, 'id' | 'timestamp'>) =>
     addLog({ ...entry, id: uid('roll'), timestamp: new Date().toISOString() });
 
-  const splitDice = (results: DiceResult[]) => {
-    const d6 = results.filter((r) => r.sides === 6).map((r) => r.value);
-    const d10 = results.filter((r) => r.sides === 10).map((r) => r.value);
-    return { d6, d10 };
-  };
-
   const rollAction = useCallback(async () => {
     if (!boxRef.current || rolling) return;
     clearResults();
     setRolling(true);
     try {
-      const results = await boxRef.current.roll([
-        { qty: 1, sides: 6, themeColor: RED },
-        { qty: 2, sides: 10, themeColor: CYAN },
-      ]);
-      const { d6, d10 } = splitDice(results);
-      const die = d6[0] ?? 1;
-      const [c1, c2] = [d10[0] ?? 1, d10[1] ?? 1];
+      const die = rollDie(6);
+      const c1 = rollDie(10);
+      const c2 = rollDie(10);
+      await boxRef.current.roll(`1d6+2d10@${die},${c1},${c2}`);
       const opt = action.statOptions.find((o) => o.stat === action.stat);
       const statValue = opt?.value ?? 0;
       const mom = character.momentum.value;
@@ -204,9 +213,9 @@ export function DicePanel() {
     clearResults();
     setRolling(true);
     try {
-      const results = await boxRef.current.roll([{ qty: 2, sides: 10, themeColor: CYAN }]);
-      const { d10 } = splitDice(results);
-      const [c1, c2] = [d10[0] ?? 1, d10[1] ?? 1];
+      const c1 = rollDie(10);
+      const c2 = rollDie(10);
+      await boxRef.current.roll(`2d10@${c1},${c2}`);
       const r = resolveAction(progress.progressScore, c1, c2);
       setProgressRes({ c1, c2, score: progress.progressScore, outcome: r.outcome, match: r.match });
       log({
@@ -227,12 +236,9 @@ export function DicePanel() {
     clearResults();
     setRolling(true);
     try {
-      const results = await boxRef.current.roll([
-        { qty: 1, sides: 10, themeColor: RED },
-        { qty: 1, sides: 10, themeColor: CYAN },
-      ]);
-      const { d10 } = splitDice(results);
-      const [a, b] = [d10[0] ?? 1, d10[1] ?? 1];
+      const a = rollDie(10);
+      const b = rollDie(10);
+      await boxRef.current.roll(`2d10@${a},${b}`);
       const n = percentile(a, b, tensFirst);
       const table = oracle.tableId ? findOracleTable(oracle.tableId) : undefined;
       const row = table ? rowFor(table, n) : undefined;
@@ -249,12 +255,9 @@ export function DicePanel() {
     clearResults();
     setRolling(true);
     try {
-      const results = await boxRef.current.roll([
-        { qty: 1, sides: 10, themeColor: RED },
-        { qty: 1, sides: 10, themeColor: CYAN },
-      ]);
-      const { d10 } = splitDice(results);
-      const [a, b] = [d10[0] ?? 1, d10[1] ?? 1];
+      const a = rollDie(10);
+      const b = rollDie(10);
+      await boxRef.current.roll(`2d10@${a},${b}`);
       const n = percentile(a, b, true);
       const yes = n <= yesno.odds;
       const match = a % 10 === b % 10;
@@ -459,7 +462,7 @@ function OracleControls({
     <div className="col gap-sm">
       <div className="dim" style={{ fontSize: 13 }}>{label}</div>
       <button className="chip-toggle on" onClick={onToggleTens}>
-        Tens die: {tensFirst ? 'RED' : 'CYAN'} (tap to swap)
+        Tens die: {tensFirst ? '1st' : '2nd'} (tap to swap)
       </button>
     </div>
   );

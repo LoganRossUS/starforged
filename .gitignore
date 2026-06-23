@@ -9,7 +9,7 @@ npm-debug.log*
 
 # Generated at install time by scripts (postinstall) — not committed
 src/data/generated/
-public/assets/dice-box/
+public/assets/dice-box-threejs/
 
 # TS build cache
 *.tsbuildinfo
