@@ -10,6 +10,7 @@ import {
   ASSET_TYPE_LABELS,
   starshipAsset,
   type AssetDef,
+  type OracleRow,
 } from '@/content';
 import { createAssetInstance } from '@/features/assets/assetInstance';
 import { AssetCard } from '@/features/assets/AssetCard';
@@ -697,25 +698,24 @@ function TruthEditor({
         {category.options.map((opt, i) => {
           const selected = selection === i;
           return (
-            <button
-              key={i}
-              className={`wiz-option ${selected ? 'selected' : ''}`}
-              onClick={() => onSelectOption(i)}
-            >
-              <div className="wiz-option-summary">
-                <span className="wiz-radio" />
-                {opt.summary}
-              </div>
-              {opt.description && <Markdown>{opt.description}</Markdown>}
-              {opt.questStarter && (
-                <div className="wiz-quest-starter">Quest starter: {opt.questStarter}</div>
-              )}
-              {opt.table && (
-                <div className="wiz-suboracle-note">
-                  Includes a sub-oracle ({opt.table.dice}) — roll it later when you flesh this out.
+            <div key={i} className="wiz-option-wrap">
+              <button
+                className={`wiz-option ${selected ? 'selected' : ''} ${
+                  opt.table ? 'has-table' : ''
+                }`}
+                onClick={() => onSelectOption(i)}
+              >
+                <div className="wiz-option-summary">
+                  <span className="wiz-radio" />
+                  {opt.summary}
                 </div>
-              )}
-            </button>
+                {opt.description && <Markdown>{opt.description}</Markdown>}
+                {opt.questStarter && (
+                  <div className="wiz-quest-starter">Quest starter: {opt.questStarter}</div>
+                )}
+              </button>
+              {opt.table && <SubOracleTable dice={opt.table.dice} rows={opt.table.rows} />}
+            </div>
           );
         })}
       </div>
@@ -729,6 +729,35 @@ function TruthEditor({
         />
       </label>
     </HexPanel>
+  );
+}
+
+// ---- Sub-oracle table rendered beneath a truth option ----
+function formatRowRange(row: OracleRow): string {
+  if (row.min === null || row.max === null) return '—';
+  return row.min === row.max ? String(row.min) : `${row.min}–${row.max}`;
+}
+
+function SubOracleTable({ dice, rows }: { dice: string; rows: OracleRow[] }) {
+  return (
+    <div className="wiz-suboracle">
+      <div className="wiz-suboracle-head">
+        <span className="wiz-suboracle-label">Sub-oracle</span>
+        <span className="wiz-suboracle-dice">{dice}</span>
+      </div>
+      <table className="wiz-suboracle-rows">
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i}>
+              <td className="wiz-suboracle-range">{formatRowRange(row)}</td>
+              <td className="wiz-suboracle-text">
+                <Markdown>{row.text}</Markdown>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
