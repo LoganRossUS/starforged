@@ -9,7 +9,10 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "build:content": "node scripts/build-content.mjs"
+    "build:content": "node scripts/build-content.mjs",
+    "copy:assets": "node scripts/copy-assets.mjs",
+    "prepare:content": "npm run build:content && npm run copy:assets",
+    "postinstall": "npm run prepare:content"
   },
   "dependencies": {
     "@3d-dice/dice-box": "^1.1.4",

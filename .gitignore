@@ -6,3 +6,7 @@ dist-ssr
 .vite
 *.log
 npm-debug.log*
+
+# Generated at install time by scripts (postinstall) — not committed
+src/data/generated/
+public/assets/dice-box/
