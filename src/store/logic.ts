@@ -1,9 +1,14 @@
 // Pure helpers for derived campaign values and roll resolution.
-import type { Character, Impacts, ProgressTrack, Rank } from './types';
+import type { Campaign, Character, Impacts, ProgressTrack, Rank, SectorMap } from './types';
 import { RANK_PROGRESS } from './types';
 
 export function uid(prefix = 'id'): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36).slice(-3)}`;
+}
+
+/** The sector currently being viewed (falls back to the first one). */
+export function currentSector(c: Campaign): SectorMap {
+  return c.sectors.find((s) => s.id === c.currentSectorId) ?? c.sectors[0];
 }
 
 /** Count active impacts (each marked debility lowers max momentum by 1). */

@@ -6,8 +6,8 @@ import type {
   MouseEvent as ReactMouseEvent,
 } from 'react';
 import { useStore } from '@/store/store';
-import { uid } from '@/store/logic';
-import type { LocationKind, SectorLocation } from '@/store/types';
+import { uid, currentSector } from '@/store/logic';
+import type { LocationKind, SectorLocation, SectorLink } from '@/store/types';
 import { findOracleTable } from '@/content';
 import { useDice } from '@/features/dice/diceStore';
 import { SectionBanner, HexPanel, Modal, Field } from '@/components/ui';
@@ -51,6 +51,29 @@ function hexCorners(cx: number, cy: number, size: number): string {
   return pts.join(' ');
 }
 
+// ---- Local oracle rolling (for auto-naming charted sectors/settlements) ----
+// Picks a random row from a dataset table. Rolls within the table's own range
+// so it works regardless of the die size, and never misses a row.
+function rollTableText(tableId: string): string {
+  const t = findOracleTable(tableId);
+  if (!t || t.rows.length === 0) return '';
+  const lo = t.rows[0].min ?? 1;
+  const hi = t.rows[t.rows.length - 1].max ?? 100;
+  const n = lo + Math.floor(Math.random() * (hi - lo + 1));
+  const row = t.rows.find((r) => r.min !== null && r.max !== null && n >= r.min && n <= r.max);
+  return row?.text ?? '';
+}
+
+function rollSectorName(): string {
+  const prefix = rollTableText('starforged/oracles/space/sector_name/prefix');
+  const suffix = rollTableText('starforged/oracles/space/sector_name/suffix');
+  return [prefix, suffix].filter(Boolean).join(' ').trim();
+}
+
+function rollSettlementName(): string {
+  return rollTableText('starforged/oracles/settlements/name');
+}
+
 // ---- Kind metadata ----
 const KIND_LABELS: Record<LocationKind, string> = {
   settlement: 'Settlement',
@@ -60,7 +83,6 @@ const KIND_LABELS: Record<LocationKind, string> = {
   vault: 'Vault',
   creature: 'Creature',
   ship: 'Ship',
-  exit: 'Sector Exit',
   other: 'Other',
 };
 
@@ -72,7 +94,6 @@ const KIND_ORDER: LocationKind[] = [
   'vault',
   'creature',
   'ship',
-  'exit',
   'other',
 ];
 
@@ -138,10 +159,6 @@ const KIND_ORACLES: Record<Exclude<LocationKind, 'settlement'>, OracleButton[]> 
     { label: 'Type', tableId: 'starforged/oracles/starships/type' },
     { label: 'First Look', tableId: 'starforged/oracles/starships/first_look' },
   ],
-  exit: [
-    { label: 'Destination (Prefix)', tableId: 'starforged/oracles/space/sector_name/prefix' },
-    { label: 'Destination (Suffix)', tableId: 'starforged/oracles/space/sector_name/suffix' },
-  ],
   other: [
     { label: 'Descriptor', tableId: 'starforged/oracles/core/descriptor' },
     { label: 'Focus', tableId: 'starforged/oracles/core/focus' },
@@ -153,26 +170,35 @@ function oracleButtonsFor(kind: LocationKind, region: string): OracleButton[] {
   return KIND_ORACLES[kind] ?? [];
 }
 
-type Mode = 'select' | 'place' | 'link' | 'exit';
+type Mode = 'select' | 'place' | 'link';
 
 export function SectorMapView() {
-  const sector = useStore((s) => s.campaign.sector);
+  const sector = useStore((s) => currentSector(s.campaign));
+  const sectors = useStore((s) => s.campaign.sectors);
+  const currentSectorId = useStore((s) => s.campaign.currentSectorId);
   const setSectorField = useStore((s) => s.setSectorField);
   const addLocation = useStore((s) => s.addLocation);
   const updateLocation = useStore((s) => s.updateLocation);
   const removeLocation = useStore((s) => s.removeLocation);
   const addLink = useStore((s) => s.addLink);
   const removeLink = useStore((s) => s.removeLink);
+  const addSector = useStore((s) => s.addSector);
+  const selectSector = useStore((s) => s.selectSector);
+  const removeSector = useStore((s) => s.removeSector);
+  const addEdgePassage = useStore((s) => s.addEdgePassage);
+  const chartBeyond = useStore((s) => s.chartBeyond);
   const setSection = useStore((s) => s.setSection);
 
   const [mode, setMode] = useState<Mode>('select');
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
   const [linkArmed, setLinkArmed] = useState<string | null>(null);
   const [hoverHex, setHoverHex] = useState<{ q: number; r: number } | null>(null);
   // World-space cursor position, tracked only while drawing a path for preview.
   const [linkCursor, setLinkCursor] = useState<{ x: number; y: number } | null>(null);
+  const [confirmRemoveSector, setConfirmRemoveSector] = useState(false);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const panState = useRef<{
@@ -185,12 +211,45 @@ export function SectorMapView() {
   }>({ active: false, moved: false, startX: 0, startY: 0, originX: 0, originY: 0 });
 
   const selected = sector.locations.find((l) => l.id === selectedId) ?? null;
+  const selectedLink = sector.links.find((k) => k.id === selectedLinkId && k.edge) ?? null;
 
   const locById = useMemo(() => {
     const m = new Map<string, SectorLocation>();
     for (const l of sector.locations) m.set(l.id, l);
     return m;
   }, [sector.locations]);
+
+  const sectorNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of sectors) m.set(s.id, s.name || 'Unnamed Sector');
+    return m;
+  }, [sectors]);
+
+  // ---- Sector navigation ----
+  function clearSelection() {
+    setSelectedId(null);
+    setSelectedLinkId(null);
+    setLinkArmed(null);
+  }
+  function switchSector(id: string) {
+    selectSector(id);
+    clearSelection();
+    setMode('select');
+  }
+  function handleAddSector() {
+    // A fresh sector gets a rolled name; you can rename it in the field above.
+    addSector({ name: rollSectorName() });
+    clearSelection();
+    setMode('select');
+  }
+  function chartSectorBeyond(linkId: string) {
+    chartBeyond(linkId, {
+      sectorName: rollSectorName() || 'Uncharted Sector',
+      settlementName: rollSettlementName() || 'New Settlement',
+    });
+    clearSelection();
+    setMode('select');
+  }
 
   // Convert a pointer event into world coordinates (pre-transform svg space).
   function eventToWorld(e: { clientX: number; clientY: number }): { x: number; y: number } | null {
@@ -226,7 +285,7 @@ export function SectorMapView() {
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) ps.moved = true;
       if (ps.moved) setOffset({ x: ps.originX + dx, y: ps.originY + dy });
     }
-    if (mode === 'place' || mode === 'exit') {
+    if (mode === 'place') {
       const w = eventToWorld(e);
       if (w) setHoverHex(pixelToHex(w.x, w.y));
     } else if (hoverHex) {
@@ -247,35 +306,41 @@ export function SectorMapView() {
     (e.target as Element).releasePointerCapture?.(e.pointerId);
     if (ps.moved) return; // it was a drag, not a click
 
-    if (mode === 'place' || mode === 'exit') {
+    if (mode === 'place') {
       const w = eventToWorld(e);
       if (!w) return;
       const { q, r } = pixelToHex(w.x, w.y);
       // avoid stacking two locations on the same hex
       if (sector.locations.some((l) => l.q === q && l.r === r)) return;
       const id = uid('loc');
-      const isExit = mode === 'exit';
-      addLocation({
-        id,
-        name: isExit ? 'Sector Exit' : 'New Location',
-        kind: isExit ? 'exit' : 'other',
-        q,
-        r,
-      });
+      addLocation({ id, name: 'New Location', kind: 'other', q, r });
       setSelectedId(id);
-    } else {
-      // clicking empty canvas in select/link mode clears selection / arming
-      setSelectedId(null);
-      setLinkArmed(null);
+      setSelectedLinkId(null);
+      return;
     }
+
+    if (mode === 'link' && linkArmed) {
+      // Armed source + click on empty space → a passage out to the sector edge.
+      const w = eventToWorld(e);
+      if (w) {
+        const { q, r } = pixelToHex(w.x, w.y);
+        const from = locById.get(linkArmed);
+        if (from && !(from.q === q && from.r === r)) addEdgePassage(linkArmed, q, r);
+      }
+      setLinkArmed(null);
+      return;
+    }
+
+    // clicking empty canvas in select/link mode clears selection / arming
+    clearSelection();
   }
 
   function onLocationClick(e: ReactMouseEvent<SVGGElement>, loc: SectorLocation) {
     e.stopPropagation();
     if (mode === 'link') {
       // First tap arms a source; second tap on a different location draws the
-      // path. Read links/armed state from the store so the result never depends
-      // on a stale render closure.
+      // path. Read links/armed state directly so it never depends on a stale
+      // render closure.
       const armed = linkArmed;
       if (!armed || armed === loc.id) {
         setLinkArmed(armed === loc.id ? null : loc.id);
@@ -288,7 +353,19 @@ export function SectorMapView() {
       setLinkArmed(null);
       return;
     }
+    setSelectedLinkId(null);
     setSelectedId(loc.id);
+  }
+
+  function onGatewayClick(e: ReactMouseEvent<SVGGElement>, link: SectorLink) {
+    e.stopPropagation();
+    if (mode === 'link') {
+      removeLink(link.id);
+      if (selectedLinkId === link.id) setSelectedLinkId(null);
+      return;
+    }
+    setSelectedId(null);
+    setSelectedLinkId(link.id);
   }
 
   function onWheel(e: ReactWheelEvent<SVGSVGElement>) {
@@ -303,7 +380,7 @@ export function SectorMapView() {
   // Upsert a detail row on a location, reading the latest store state so the
   // write is correct even though it runs after the async dice roll resolves.
   function upsertDetail(locId: string, label: string, value: string) {
-    const cur = useStore.getState().campaign.sector.locations.find((l) => l.id === locId);
+    const cur = currentSector(useStore.getState().campaign).locations.find((l) => l.id === locId);
     if (!cur) return;
     const details = [...(cur.details ?? [])];
     const idx = details.findIndex((d) => d.label === label);
@@ -353,12 +430,39 @@ export function SectorMapView() {
     updateLocation(selected.id, { details });
   }
 
+  const showEditor = !!selected || !!selectedLink;
+
   return (
     <div className="sector-view">
       <SectionBanner title="Sector" />
 
       <HexPanel style={{ marginTop: 12 }}>
-        <div className="sector-fields">
+        <div className="sector-switcher">
+          <Field label="Active Sector">
+            <select value={currentSectorId} onChange={(e) => switchSector(e.target.value)}>
+              {sectors.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name || 'Unnamed Sector'}
+                  {s.region ? ` · ${s.region}` : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <button className="btn sm cyan" onClick={handleAddSector} title="Chart a new, empty sector">
+            + New Sector
+          </button>
+          {sectors.length > 1 && (
+            <button
+              className="btn sm"
+              onClick={() => setConfirmRemoveSector(true)}
+              title="Delete the active sector"
+            >
+              Remove Sector
+            </button>
+          )}
+        </div>
+
+        <div className="sector-fields" style={{ marginTop: 12 }}>
           <Field label="Sector Name">
             <input
               type="text"
@@ -412,18 +516,9 @@ export function SectorMapView() {
               setMode(mode === 'link' ? 'select' : 'link');
               setLinkArmed(null);
             }}
+            title="Connect two settlements, or run a passage out to the sector edge"
           >
-            Link
-          </button>
-          <button
-            className={`btn sm ${mode === 'exit' ? 'cyan' : ''}`}
-            onClick={() => {
-              setMode(mode === 'exit' ? 'select' : 'exit');
-              setLinkArmed(null);
-            }}
-            title="Place a route to a neighbouring sector at the edge of the map"
-          >
-            + Sector Exit
+            Passage
           </button>
         </div>
         <div className="row gap-sm" style={{ marginLeft: 'auto' }}>
@@ -440,11 +535,11 @@ export function SectorMapView() {
         </div>
       </div>
 
-      <div className={`sector-layout ${selected ? 'has-editor' : ''}`}>
+      <div className={`sector-layout ${showEditor ? 'has-editor' : ''}`}>
         <div className="sector-map-wrap">
           <svg
             ref={svgRef}
-            className={`sector-map-svg ${mode === 'place' || mode === 'exit' ? 'place-mode' : ''} ${
+            className={`sector-map-svg ${mode === 'place' ? 'place-mode' : ''} ${
               panState.current.active && panState.current.moved ? 'panning' : ''
             }`}
             onPointerDown={onCanvasPointerDown}
@@ -453,9 +548,9 @@ export function SectorMapView() {
             onWheel={onWheel}
           >
             <g transform={`translate(${offset.x},${offset.y}) scale(${scale})`}>
-              <GridLayer hoverHex={mode === 'place' || mode === 'exit' ? hoverHex : null} />
+              <GridLayer hoverHex={mode === 'place' ? hoverHex : null} />
 
-              {/* Path-in-progress preview from the armed source to the cursor */}
+              {/* Passage-in-progress preview from the armed source to the cursor */}
               {mode === 'link' &&
                 linkArmed &&
                 linkCursor &&
@@ -475,8 +570,9 @@ export function SectorMapView() {
                   );
                 })()}
 
-              {/* Links */}
+              {/* Settlement-to-settlement passages */}
               {sector.links.map((k) => {
+                if (k.edge || !k.to) return null;
                 const a = locById.get(k.from);
                 const b = locById.get(k.to);
                 if (!a || !b) return null;
@@ -495,6 +591,49 @@ export function SectorMapView() {
                       if (mode === 'link') removeLink(k.id);
                     }}
                   />
+                );
+              })}
+
+              {/* Edge passages — routes to neighbouring sectors */}
+              {sector.links.map((k) => {
+                if (!k.edge) return null;
+                const a = locById.get(k.from);
+                if (!a) return null;
+                const pa = hexToPixel(a.q, a.r);
+                const pe = hexToPixel(k.edge.q, k.edge.r);
+                const charted = !!k.edge.targetSectorId;
+                const isSel = k.id === selectedLinkId;
+                const label = charted
+                  ? (sectorNameById.get(k.edge.targetSectorId!) ?? 'Sector')
+                  : 'Uncharted';
+                return (
+                  <g key={k.id}>
+                    <line
+                      className={`sector-edge-line ${charted ? 'charted' : ''}`}
+                      x1={pa.x}
+                      y1={pa.y}
+                      x2={pe.x}
+                      y2={pe.y}
+                      pointerEvents="none"
+                    />
+                    <g
+                      transform={`translate(${pe.x},${pe.y})`}
+                      onPointerDown={(ev) => ev.stopPropagation()}
+                      onPointerUp={(ev) => ev.stopPropagation()}
+                      onClick={(ev) => onGatewayClick(ev, k)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <polygon
+                        className={`sector-gateway ${charted ? 'charted' : ''} ${
+                          isSel ? 'selected' : ''
+                        }`}
+                        points={gatewayPoints(13)}
+                      />
+                      <text className="sector-loc-label" y={28}>
+                        {label}
+                      </text>
+                    </g>
+                  </g>
                 );
               })}
 
@@ -533,13 +672,11 @@ export function SectorMapView() {
           <div className="sector-hint">
             {mode === 'place'
               ? 'Click an empty hex to place a location. Drag to pan.'
-              : mode === 'exit'
-                ? 'Click an edge hex to add a sector exit, then link a path to it.'
-                : mode === 'link'
-                  ? linkArmed
-                    ? 'Click a second location to link. Click a link to remove it.'
-                    : 'Click two locations to link them.'
-                  : 'Drag to pan · wheel to zoom · click a location to edit.'}
+              : mode === 'link'
+                ? linkArmed
+                  ? 'Click another settlement to connect, or click an edge hex to run a passage out of the sector.'
+                  : 'Click a settlement to start a passage. Click a passage to remove it.'
+                : 'Drag to pan · wheel to zoom · click a location or passage to edit.'}
           </div>
 
           <div className="sector-zoom-controls">
@@ -552,7 +689,7 @@ export function SectorMapView() {
           </div>
         </div>
 
-        {selected && (
+        {selected ? (
           <LocationEditor
             key={selected.id}
             loc={selected}
@@ -568,7 +705,26 @@ export function SectorMapView() {
             onRollOracle={rollOracle}
             onClose={() => setSelectedId(null)}
           />
-        )}
+        ) : selectedLink && selectedLink.edge ? (
+          <EdgePassageEditor
+            key={selectedLink.id}
+            fromName={locById.get(selectedLink.from)?.name ?? 'a settlement'}
+            targetSectorName={
+              selectedLink.edge.targetSectorId
+                ? (sectorNameById.get(selectedLink.edge.targetSectorId) ?? 'Sector')
+                : null
+            }
+            onChart={() => chartSectorBeyond(selectedLink.id)}
+            onTravel={() =>
+              selectedLink.edge?.targetSectorId && switchSector(selectedLink.edge.targetSectorId)
+            }
+            onDelete={() => {
+              removeLink(selectedLink.id);
+              setSelectedLinkId(null);
+            }}
+            onClose={() => setSelectedLinkId(null)}
+          />
+        ) : null}
       </div>
 
       <div className="sector-legend">
@@ -578,6 +734,10 @@ export function SectorMapView() {
             {KIND_LABELS[k]}
           </span>
         ))}
+        <span className="swatch">
+          <i className="swatch-gateway" />
+          Edge Passage
+        </span>
       </div>
 
       {sector.locations.length === 0 && (
@@ -586,8 +746,39 @@ export function SectorMapView() {
           discovery.
         </p>
       )}
+
+      <Modal
+        open={confirmRemoveSector}
+        onClose={() => setConfirmRemoveSector(false)}
+        title="Remove Sector"
+      >
+        <p>
+          Delete <strong>{sector.name || 'this sector'}</strong> and everything charted in it? This
+          can't be undone.
+        </p>
+        <div className="row gap-sm" style={{ marginTop: 12 }}>
+          <button
+            className="btn primary"
+            onClick={() => {
+              removeSector(currentSectorId);
+              clearSelection();
+              setConfirmRemoveSector(false);
+            }}
+          >
+            Delete
+          </button>
+          <button className="btn" onClick={() => setConfirmRemoveSector(false)}>
+            Cancel
+          </button>
+        </div>
+      </Modal>
     </div>
   );
+}
+
+// Diamond gateway marker points centred on origin.
+function gatewayPoints(r: number): string {
+  return `0,${-r} ${r},0 0,${r} ${-r},0`;
 }
 
 // ---- Background hex grid ----
@@ -617,6 +808,72 @@ function GridLayer({ hoverHex }: { hoverHex: { q: number; r: number } | null }) 
         );
       })}
     </g>
+  );
+}
+
+// ---- Edge passage editor panel ----
+function EdgePassageEditor({
+  fromName,
+  targetSectorName,
+  onChart,
+  onTravel,
+  onDelete,
+  onClose,
+}: {
+  fromName: string;
+  targetSectorName: string | null;
+  onChart: () => void;
+  onTravel: () => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <HexPanel className="sector-editor" accent="var(--cyan)">
+      <div className="editor-head">
+        <h3 className="section-title">
+          <span className="sector-kind-dot" style={{ background: 'var(--cyan)' }} />
+          Edge Passage
+        </h3>
+        <button className="btn sm" onClick={onClose}>
+          Close
+        </button>
+      </div>
+
+      <p className="dim" style={{ fontSize: 13 }}>
+        A passage running from <strong>{fromName}</strong> to the edge of the sector — a route to
+        a neighbouring sector.
+      </p>
+
+      {targetSectorName ? (
+        <>
+          <div className="section-title" style={{ marginTop: 8 }}>
+            Leads to
+          </div>
+          <p style={{ marginTop: 2 }}>
+            <strong>{targetSectorName}</strong>
+          </p>
+          <button className="btn sm cyan" style={{ marginTop: 8 }} onClick={onTravel}>
+            Travel to {targetSectorName} →
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="dim" style={{ fontSize: 12, marginTop: 8 }}>
+            When you leave the sector along this passage, chart the sector beyond — it rolls a new
+            sector and settlement, and this passage becomes the link between them.
+          </p>
+          <button className="btn sm cyan" style={{ marginTop: 8 }} onClick={onChart}>
+            Chart Sector Beyond
+          </button>
+        </>
+      )}
+
+      <div style={{ marginTop: 14 }}>
+        <button className="btn sm" onClick={onDelete}>
+          Remove Passage
+        </button>
+      </div>
+    </HexPanel>
   );
 }
 
