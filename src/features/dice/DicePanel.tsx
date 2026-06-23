@@ -42,7 +42,6 @@ interface ProgressResult {
 }
 interface OracleResult {
   d100: number;
-  tensFirst: boolean;
   table?: OracleTable;
   row?: OracleRow;
   text: string;
@@ -54,11 +53,18 @@ interface YesNoResult {
   oddsLabel: string;
 }
 
-function percentile(a: number, b: number, tensFirst: boolean): number {
-  const tens = (tensFirst ? a : b) % 10; // 10 -> 0
-  const ones = (tensFirst ? b : a) % 10;
-  const total = tens * 10 + ones;
-  return total === 0 ? 100 : total;
+// A percentile result is shown with a d100 "tens" die (00..90) and a d10 "ones"
+// die (0..9). Map a 1..100 value to the predetermined faces for `[d100, d10]`:
+// the d100 die uses 10..90 (and 100 → "00"), the d10 uses 1..9 (and 10 → "0").
+function percentileFaces(n: number): [number, number] {
+  const ones = n % 10; // 0..9
+  const tens = n - ones; // 0,10,..,90 (100 when n === 100)
+  return [tens === 0 ? 100 : tens, ones === 0 ? 10 : ones];
+}
+
+// Ironsworn "match": the tens and ones digits are equal (11, 22, … 99, 100).
+function isMatch(n: number): boolean {
+  return Math.floor(n / 10) % 10 === n % 10;
 }
 
 function rowFor(table: OracleTable, n: number): OracleRow | undefined {
@@ -89,7 +95,6 @@ export function DicePanel() {
   const boxRef = useRef<DiceBox | null>(null);
   const [ready, setReady] = useState(false);
   const [rolling, setRolling] = useState(false);
-  const [tensFirst, setTensFirst] = useState(true);
 
   const [actionRes, setActionRes] = useState<ActionResult | null>(null);
   const [progressRes, setProgressRes] = useState<ProgressResult | null>(null);
@@ -236,31 +241,29 @@ export function DicePanel() {
     clearResults();
     setRolling(true);
     try {
-      const a = rollDie(10);
-      const b = rollDie(10);
-      await boxRef.current.roll(`2d10@${a},${b}`);
-      const n = percentile(a, b, tensFirst);
+      const n = rollDie(100);
+      const [d100, d10] = percentileFaces(n);
+      await boxRef.current.roll(`1d100+1d10@${d100},${d10}`);
       const table = oracle.tableId ? findOracleTable(oracle.tableId) : undefined;
       const row = table ? rowFor(table, n) : undefined;
       const text = row?.text ?? `${n}`;
-      setOracleRes({ d100: n, tensFirst, table, row, text });
+      setOracleRes({ d100: n, table, row, text });
       log({ type: 'oracle', label: oracle.label, d100: n, oracleResult: text });
     } finally {
       setRolling(false);
     }
-  }, [oracle, tensFirst, rolling]);
+  }, [oracle, rolling]);
 
   const rollYesNo = useCallback(async () => {
     if (!boxRef.current || rolling) return;
     clearResults();
     setRolling(true);
     try {
-      const a = rollDie(10);
-      const b = rollDie(10);
-      await boxRef.current.roll(`2d10@${a},${b}`);
-      const n = percentile(a, b, true);
+      const n = rollDie(100);
+      const [d100, d10] = percentileFaces(n);
+      await boxRef.current.roll(`1d100+1d10@${d100},${d10}`);
       const yes = n <= yesno.odds;
-      const match = a % 10 === b % 10;
+      const match = isMatch(n);
       setYesnoRes({ d100: n, yes, match, oddsLabel: yesno.oddsLabel });
       log({
         type: 'yesno',
@@ -348,13 +351,7 @@ export function DicePanel() {
             {progress.label} — progress score <strong className="accent-cyan">{progress.progressScore}</strong>
           </div>
         )}
-        {mode === 'oracle' && (
-          <OracleControls
-            label={oracle.label}
-            tensFirst={tensFirst}
-            onToggleTens={() => setTensFirst((v) => !v)}
-          />
-        )}
+        {mode === 'oracle' && <OracleControls label={oracle.label} />}
         {mode === 'yesno' && <YesNoControls />}
 
         <button className="btn primary roll-btn" onClick={() => void rollCurrent()} disabled={!ready || rolling}>
@@ -449,21 +446,13 @@ function ActionControls({
   );
 }
 
-function OracleControls({
-  label,
-  tensFirst,
-  onToggleTens,
-}: {
-  label: string;
-  tensFirst: boolean;
-  onToggleTens: () => void;
-}) {
+function OracleControls({ label }: { label: string }) {
   return (
     <div className="col gap-sm">
       <div className="dim" style={{ fontSize: 13 }}>{label}</div>
-      <button className="chip-toggle on" onClick={onToggleTens}>
-        Tens die: {tensFirst ? '1st' : '2nd'} (tap to swap)
-      </button>
+      <div className="muted" style={{ fontSize: 12 }}>
+        Rolls a d100 (tens) + d10 (ones).
+      </div>
     </div>
   );
 }
